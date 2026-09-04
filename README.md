@@ -38,6 +38,25 @@ npm run dev
 
 如需脱离 PLC 使用模拟数据，可设置 `PLC_MODE=simulation`。模拟模式下的光伏 1–4 电压/电流依次为 `210 V / 19 A`、`210 V / 19 A`、`222 V / 21 A`、`220 V / 20 A`，蓄电池为 `52 V / 5 A`；PLC 时钟从 `2026-09-01 15:30:30` 开始按采样周期递增。
 
+## Pad 局域网访问地址
+
+内置服务仍监听所有网卡，但管理端生成和分享的 Pad 地址固定使用 Wi-Fi 网卡的 IPv4 地址。应用会自动识别 macOS 的 `en0`、Windows 常见的 `Wi-Fi`/`WLAN` 以及 Linux 常见的 `wlan`/`wlp` 网卡。
+
+如果设备的 Wi-Fi 网卡名称不同，可用 `APP_WIFI_INTERFACE` 明确指定：
+
+```bash
+APP_WIFI_INTERFACE=en0 npm run dev
+```
+
+Windows PowerShell 示例：
+
+```powershell
+$env:APP_WIFI_INTERFACE='Wi-Fi'
+npm run dev
+```
+
+Wi-Fi 网卡没有活动 IPv4 地址时，应用会在终端打印警告并回退到其他可用局域网地址，以保证应用仍可启动。建议在路由器中为运行软件的电脑设置 DHCP 地址保留，避免分享链接随 Wi-Fi 地址变化。
+
 ## Recommended IDE Setup
 
 - [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)

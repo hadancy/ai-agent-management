@@ -5,7 +5,7 @@ import fastifyStatic from '@fastify/static'
 import Fastify from 'fastify'
 import { WebSocket, WebSocketServer } from 'ws'
 import type { ServerEvent, SystemInfo, TelemetrySnapshot } from '../../shared/contracts'
-import { getPrimaryLanAddress } from '../network'
+import { getWifiLanAddress } from '../network'
 import { PlcTcpCollector, SimulatedCollector, type DataCollector } from './collector'
 import { createAppDatabase } from './database'
 import { registerWorkOrderRoutes, WorkOrderService } from './work-orders'
@@ -41,18 +41,19 @@ function createCollector(): DataCollector {
   })
 }
 
-function replaceUrlHost(url: string, host: string, pathname: string): string {
+function replaceUrlHost(url: string, host: string, requestUrl: string): string {
   const target = new URL(url)
+  const requestTarget = new URL(requestUrl, 'http://localhost')
   target.hostname = host
-  target.pathname = pathname
-  target.search = ''
+  target.pathname = requestTarget.pathname
+  target.search = requestTarget.search
   target.hash = ''
   return target.toString()
 }
 
 export async function startEmbeddedServer(options: EmbeddedServerOptions): Promise<EmbeddedServer> {
   const port = options.port ?? 17880
-  const host = getPrimaryLanAddress()
+  const host = getWifiLanAddress()
   const database = createAppDatabase(options.dataDirectory)
   const collector = createCollector()
   const clients = new Set<WebSocket>()
@@ -110,8 +111,8 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
   if (options.developmentRendererUrl) {
     app.get('/', async (_request, reply) => reply.redirect(options.developmentRendererUrl!))
     app.get('/b', async (_request, reply) => reply.redirect(options.developmentRendererUrl!))
-    app.get('/c', async (_request, reply) => {
-      return reply.redirect(replaceUrlHost(options.developmentRendererUrl!, host, '/c'))
+    app.get('/c', async (request, reply) => {
+      return reply.redirect(replaceUrlHost(options.developmentRendererUrl!, host, request.url))
     })
   } else if (existsSync(join(options.rendererDirectory, 'index.html'))) {
     await app.register(fastifyStatic, {
