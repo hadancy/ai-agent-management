@@ -13,12 +13,20 @@ asarUnpack:
   - resources/**
   - node_modules/better-sqlite3/**
 win:
-  executableName: ai-agent-management
+  target:
+    - nsis
+  artifactName: ${productName}-Setup-${version}.${ext}
+  executableName: 能碳数智管理系统
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  installerIcon: build/icon.ico
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
-  createDesktopShortcut: always
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
