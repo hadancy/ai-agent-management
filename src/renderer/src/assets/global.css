@@ -1,0 +1,27 @@
+:root {
+  --panel: rgba(4, 22, 39, 0.94);
+  --border: #0b6091;
+  --cyan: #1ec5ff;
+  --teal: #17ebca;
+  --green: #68d246;
+  --text: #f1f4f8;
+  --amber: #f5a916;
+}
+
+body {
+  overflow: auto;
+  background:
+    radial-gradient(circle at 35% -30%, rgba(10, 89, 131, 0.24), transparent 42%),
+    linear-gradient(180deg, #020b16 0%, #041322 55%, #03101c 100%);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+button {
+  border: 0;
+}

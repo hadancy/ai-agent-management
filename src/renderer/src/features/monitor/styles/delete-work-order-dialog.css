@@ -1,0 +1,188 @@
+.delete-order-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 8, 15, 0.78);
+  backdrop-filter: blur(5px);
+  animation: delete-order-backdrop-in 160ms ease-out;
+}
+
+.delete-order-dialog {
+  width: min(430px, calc(100vw - 36px));
+  overflow: hidden;
+  position: relative;
+  padding: 28px 30px 26px;
+  border: 1px solid rgba(232, 91, 72, 0.72);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 0 0, rgba(220, 69, 51, 0.17), transparent 38%),
+    linear-gradient(145deg, #0c2839, #061722 72%);
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.62),
+    inset 0 0 32px rgba(239, 89, 66, 0.04);
+  color: #eaf2f7;
+  animation: delete-order-dialog-in 180ms ease-out;
+}
+
+.delete-order-dialog__icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  position: absolute;
+  top: 27px;
+  left: 30px;
+  border: 1px solid rgba(255, 107, 86, 0.85);
+  border-radius: 50%;
+  color: #ff9a88;
+  background: rgba(184, 47, 34, 0.2);
+  box-shadow: 0 0 24px rgba(238, 77, 56, 0.18);
+}
+
+.delete-order-dialog__icon span {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.delete-order-dialog__heading {
+  min-height: 49px;
+  padding-left: 64px;
+}
+
+.delete-order-dialog__heading > span {
+  display: block;
+  margin-bottom: 4px;
+  color: #ff8976;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+.delete-order-dialog__heading h2 {
+  margin: 0;
+  color: #f5f8fa;
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.delete-order-dialog__number {
+  display: block;
+  margin-top: 23px;
+  padding: 13px 15px;
+  border-left: 3px solid #ef6652;
+  border-radius: 5px;
+  color: #ffb4a8;
+  background: rgba(178, 50, 35, 0.14);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.delete-order-dialog > p {
+  margin: 17px 0 13px;
+  color: #b8c8d1;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.delete-order-dialog__impact {
+  padding: 11px 13px;
+  border: 1px solid rgba(65, 116, 145, 0.46);
+  border-radius: 6px;
+  background: rgba(4, 24, 37, 0.65);
+}
+
+.delete-order-dialog__impact span,
+.delete-order-dialog__impact strong {
+  display: block;
+}
+
+.delete-order-dialog__impact span {
+  margin-bottom: 5px;
+  color: #718fa1;
+  font-size: 10px;
+}
+
+.delete-order-dialog__impact strong {
+  color: #c9d6dd;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.delete-order-dialog__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.delete-order-dialog__actions button {
+  height: 38px;
+  border-radius: 5px;
+  color: #dce7ed;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.delete-order-dialog__cancel {
+  border: 1px solid rgba(84, 129, 153, 0.56);
+  background: rgba(22, 62, 82, 0.46);
+}
+
+.delete-order-dialog__confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #e85b48;
+  background: linear-gradient(180deg, #c94b3a, #9e3327);
+  box-shadow: 0 5px 16px rgba(190, 52, 38, 0.24);
+}
+
+.delete-order-dialog__actions button:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.delete-order-dialog__actions button:disabled {
+  opacity: 0.58;
+  cursor: wait;
+}
+
+.delete-order-dialog__confirm i {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: delete-order-spin 0.7s linear infinite;
+}
+
+@keyframes delete-order-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes delete-order-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes delete-order-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .delete-order-dialog-backdrop,
+  .delete-order-dialog,
+  .delete-order-dialog__confirm i {
+    animation: none;
+  }
+}

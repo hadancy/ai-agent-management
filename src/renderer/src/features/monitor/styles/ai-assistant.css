@@ -1,0 +1,351 @@
+.ai-panel {
+  display: grid;
+  grid-template-rows: 59px 1fr 70px;
+  border-color: #0086c7;
+}
+
+.ai-heading {
+  min-height: 59px;
+  border-bottom: 1px solid rgba(37, 90, 126, 0.18);
+}
+
+.ai-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 20px;
+}
+
+.title-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #20c6fb;
+  border-radius: 3px;
+  color: #20c6fb;
+  font-family: 'Arial Narrow', sans-serif;
+  font-size: 15px;
+}
+
+.online-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #6cdb4d;
+  font-size: 13px;
+}
+
+.ai-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.clear-chat-button {
+  height: 29px;
+  padding: 0 10px;
+  border: 1px solid rgba(62, 137, 176, 0.66);
+  border-radius: 4px;
+  color: #94b6c9;
+  background: rgba(6, 43, 67, 0.54);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.clear-chat-button:hover:not(:disabled) {
+  border-color: #24bfe9;
+  color: #dff8ff;
+}
+
+.clear-chat-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chat-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 11px 14px 14px;
+  scrollbar-color: rgba(37, 111, 154, 0.5) transparent;
+}
+
+.chat-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.chat-row--user {
+  justify-content: flex-end;
+}
+
+.bot-avatar {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #0a82bd;
+  border-radius: 50%;
+  color: #23cdf4;
+  background: #062237;
+  font-size: 0;
+}
+
+.bot-avatar::before {
+  content: '';
+  width: 21px;
+  height: 15px;
+  border: 2px solid #23cdf4;
+  border-radius: 7px;
+}
+
+.bot-avatar::after {
+  content: '• •';
+  position: absolute;
+  top: 10px;
+  left: 11px;
+  color: #23cdf4;
+  font-size: 11px;
+  letter-spacing: 3px;
+}
+
+.chat-bubble {
+  position: relative;
+  max-width: calc(100% - 65px);
+  padding: 15px 17px;
+  border: 1px solid #234c68;
+  border-radius: 8px;
+  color: #dadde3;
+  background: rgba(10, 36, 57, 0.83);
+  font-size: 14px;
+  line-height: 1.8;
+  letter-spacing: 0.04em;
+}
+
+.chat-bubble p {
+  margin: 0;
+}
+
+.chat-row--assistant .chat-bubble {
+  width: min(322px, calc(100% - 65px));
+}
+
+.chat-row--assistant .chat-bubble::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: -7px;
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  border-bottom: 1px solid #234c68;
+  border-left: 1px solid #234c68;
+  background: #0a2439;
+}
+
+.chat-row--user .chat-bubble {
+  border-color: rgba(0, 133, 199, 0.68);
+  background: rgba(0, 101, 151, 0.24);
+}
+
+.chat-image {
+  width: 100%;
+  max-height: 150px;
+  display: block;
+  margin-bottom: 9px;
+  border: 1px solid rgba(67, 181, 226, 0.34);
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.thinking-state {
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #9fc4d8;
+}
+
+.thinking-state span {
+  margin-right: 3px;
+}
+
+.thinking-state i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #37c9ee;
+  animation: thinking-dot 1.1s ease-in-out infinite;
+}
+
+.thinking-state i:nth-of-type(2) {
+  animation-delay: 0.16s;
+}
+
+.thinking-state i:nth-of-type(3) {
+  animation-delay: 0.32s;
+}
+
+@keyframes thinking-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+.diagnosis-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.diagnosis-list li {
+  display: grid;
+  grid-template-columns: 8px 74px 1fr;
+  gap: 2px;
+}
+
+.diagnosis-list li::before {
+  content: '-';
+  color: #56ccec;
+}
+
+.diagnosis-list strong {
+  color: #e7f5fc;
+  font-weight: 550;
+}
+
+.work-order-created {
+  margin-top: 8px !important;
+  color: #68d94e;
+  font-weight: 600;
+}
+
+.diagnosis-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(61, 121, 157, 0.36);
+}
+
+.voice-state {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #86a4b9;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.voice-state i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #66879c;
+}
+
+.voice-state--speaking {
+  color: #35ccef;
+}
+
+.voice-state--speaking i {
+  background: #35ccef;
+  box-shadow: 0 0 8px rgba(53, 204, 239, 0.8);
+  animation: voice-pulse 0.8s ease-in-out infinite;
+}
+
+.voice-state--completed {
+  color: #78cb60;
+}
+
+.voice-state--completed i {
+  background: #78cb60;
+}
+
+@keyframes voice-pulse {
+  50% {
+    opacity: 0.42;
+    transform: scale(0.72);
+  }
+}
+
+.diagnosis-actions button {
+  min-width: 86px;
+  height: 31px;
+  border: 1px solid #16bce9;
+  border-radius: 5px;
+  color: #e9faff;
+  background: linear-gradient(180deg, #087fbc, #04669d);
+  cursor: pointer;
+}
+
+.chat-composer {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px 1fr 75px;
+  gap: 10px;
+  padding: 8px 14px 11px;
+}
+
+.chat-file-input {
+  position: absolute;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chat-composer input,
+.upload-button,
+.send-button {
+  min-width: 0;
+  height: 43px;
+  border-radius: 6px;
+}
+
+.chat-composer input {
+  padding: 0 16px;
+  border: 1px solid #234a65;
+  color: #dce5ed;
+  background: #071c2e;
+  font-size: 13px;
+}
+
+.chat-composer input::placeholder {
+  color: #74879a;
+}
+
+.upload-button {
+  border: 1px solid #245675;
+  color: #2bc8fb;
+  background: #062137;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.send-button {
+  border: 1px solid #15baf1;
+  color: #eaf8ff;
+  background: linear-gradient(180deg, #087fbc, #04669d);
+  box-shadow:
+    inset 0 0 10px rgba(47, 207, 255, 0.22),
+    0 0 12px rgba(0, 140, 200, 0.15);
+  cursor: pointer;
+}

@@ -1,0 +1,91 @@
+.workflow-panel {
+  border-color: #0879b2;
+}
+
+.workflow-heading {
+  min-height: 50px;
+  padding: 0 14px;
+}
+
+.workflow-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+}
+
+.clipboard-icon {
+  color: #28c8fa;
+  font-size: 26px;
+}
+
+.workflow-heading > span {
+  color: #aca9ad;
+  font-size: 11px;
+}
+
+.workflow-heading > span i {
+  width: 1px;
+  height: 15px;
+  display: inline-block;
+  margin: 0 8px -3px;
+  background: #777b82;
+}
+
+.workflow-track {
+  --workflow-progress: 0%;
+  position: relative;
+  height: calc(100% - 50px);
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  padding: 2px 14px 8px;
+}
+
+.workflow-line {
+  position: absolute;
+  top: calc(50% - 17px);
+  right: 10%;
+  left: 10%;
+  height: 4px;
+  border-radius: 5px;
+  background: linear-gradient(
+    90deg,
+    #65b941 var(--workflow-progress),
+    #a9a9aa var(--workflow-progress)
+  );
+}
+
+.workflow-step {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  color: #b4adb0;
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.workflow-step i {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 4px solid #aaa9aa;
+  border-radius: 50%;
+  color: transparent;
+  background: #092036;
+  font-style: normal;
+}
+
+.workflow-step--active i {
+  border-color: #65b941;
+  color: #fff;
+  background: #65a93e;
+  box-shadow: 0 0 13px rgba(101, 185, 65, 0.36);
+}
