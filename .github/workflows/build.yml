@@ -61,6 +61,14 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ai-agent-management-${{ matrix.artifact }}
-          path: dist/*
+          path: |
+            dist/*.exe
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.snap
+            dist/*.deb
+            dist/*.blockmap
+            dist/*.yml
           if-no-files-found: error
           retention-days: 14
