@@ -40,7 +40,7 @@ npm run dev
 
 ## Pad 局域网访问地址
 
-内置服务仍监听所有网卡，但管理端生成和分享的 Pad 地址固定使用 Wi-Fi 网卡的 IPv4 地址。应用会自动识别 macOS 的 `en0`、Windows 常见的 `Wi-Fi`/`WLAN` 以及 Linux 常见的 `wlan`/`wlp` 网卡。
+内置服务仍监听所有网卡，但管理端生成和分享的 Pad 地址固定使用 Wi-Fi 网卡的 IPv4 地址。Windows 会优先根据系统报告的 NDIS 无线物理介质识别真实 Wi-Fi 网卡，不依赖网卡显示名称；macOS 默认识别 `en0`，Linux 默认识别常见的 `wlan`/`wlp` 网卡。
 
 如果设备的 Wi-Fi 网卡名称不同，可用 `APP_WIFI_INTERFACE` 明确指定：
 
@@ -55,7 +55,7 @@ $env:APP_WIFI_INTERFACE='Wi-Fi'
 npm run dev
 ```
 
-Wi-Fi 网卡没有活动 IPv4 地址时，应用会在终端打印警告并回退到其他可用局域网地址，以保证应用仍可启动。建议在路由器中为运行软件的电脑设置 DHCP 地址保留，避免分享链接随 Wi-Fi 地址变化。
+Wi-Fi 网卡没有活动 IPv4 地址时，应用会在终端打印警告并把分享地址限制为 `127.0.0.1`，不会自动切换到有线或虚拟网卡；应用本身仍可在本机启动。建议在路由器中为运行软件的电脑设置 DHCP 地址保留，避免分享链接随 Wi-Fi 地址变化。
 
 ## Recommended IDE Setup
 
