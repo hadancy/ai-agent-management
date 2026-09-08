@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
+import { createBuiltInWorkOrders } from './work-order-samples'
 import type {
   TelemetrySnapshot,
   WorkOrder,
@@ -86,6 +87,7 @@ export interface AppDatabase {
   saveTelemetry(snapshot: TelemetrySnapshot): void
   recordEvent(type: string, payload: unknown): void
   runInTransaction<T>(operation: () => T): T
+  seedBuiltInWorkOrders(): void
   nextWorkOrderNumber(datePart: string): string
   findOpenWorkOrder(dedupeKey: string): WorkOrder | undefined
   insertWorkOrder(workOrder: WorkOrder, dedupeKey: string): void
@@ -439,6 +441,138 @@ export function createAppDatabase(dataDirectory: string): AppDatabase {
     },
     runInTransaction<T>(operation: () => T): T {
       return database.transaction(operation)()
+    },
+    seedBuiltInWorkOrders() {
+      this.runInTransaction(() => {
+        const initializedEvent = 'work-order.builtins-initialized.v1'
+        const updatedEvent = 'work-order.builtins-updated.v2'
+        const locationEvent = 'work-order.builtins-locations.v3'
+        const combinationEvent = 'work-order.builtins-combinations.v4'
+        const hasEvent = (eventType: string): boolean =>
+          Boolean(
+            database
+              .prepare('SELECT 1 FROM system_events WHERE event_type = ? LIMIT 1')
+              .get(eventType)
+          )
+        if (hasEvent(combinationEvent)) return
+
+        const samples = createBuiltInWorkOrders((datePart) => this.nextWorkOrderNumber(datePart))
+        if (!hasEvent(updatedEvent)) {
+          if (!hasEvent(initializedEvent)) {
+            for (const workOrder of samples) {
+              // 样例使用独立去重键，避免拦截真实故障生成工单。
+              this.insertWorkOrder(workOrder, workOrder.id)
+              this.recordWorkOrderEvent({
+                workOrderId: workOrder.id,
+                type: 'draft_created',
+                actor: 'builtin-sample',
+                createdAt: workOrder.createdAt,
+                payload: { sample: true, orderNumber: workOrder.orderNumber }
+              })
+              if (workOrder.closedAt) {
+                this.recordWorkOrderEvent({
+                  workOrderId: workOrder.id,
+                  type: 'closed',
+                  actor: 'builtin-sample',
+                  createdAt: workOrder.closedAt,
+                  payload: { sample: true, plcVerification: workOrder.plcVerification }
+                })
+              }
+            }
+            this.recordEvent(initializedEvent, { count: samples.length })
+          } else {
+            for (const sample of samples) {
+              const current = this.getWorkOrder(sample.id)
+              // 更新现有展示数据，不恢复用户已经删除的样例。
+              if (!current) continue
+              const untouched =
+                current.updatedAt === sample.updatedAt && current.status === sample.status
+              this.updateWorkOrder({
+                ...current,
+                componentName: sample.componentName,
+                faultType: sample.faultType,
+                handlingSuggestion: sample.handlingSuggestion,
+                alarm: sample.alarm
+              })
+              for (const task of current.tasks) {
+                const template = sample.tasks.find((item) => item.role === task.role)
+                if (!template) continue
+                this.updateTask({
+                  ...task,
+                  title: template.title,
+                  description: template.description,
+                  risks: template.risks,
+                  // 已人工操作的任务保留其回填结果和执行时间。
+                  result: untouched ? template.result : task.result
+                })
+              }
+            }
+          }
+          const obsolete = this.getWorkOrder('builtin-work-order-1')
+          const removedId =
+            obsolete?.status === 'closed' && this.deleteWorkOrder(obsolete.id) ? obsolete.id : null
+          this.recordEvent(updatedEvent, {
+            sampleIds: samples.map((sample) => sample.id),
+            removedId
+          })
+        }
+        if (!hasEvent(locationEvent)) {
+          for (const sample of samples) {
+            const current = this.getWorkOrder(sample.id)
+            if (!current) continue
+            this.updateWorkOrder({
+              ...current,
+              deviceId: sample.deviceId,
+              stringName: sample.stringName
+            })
+            for (const task of current.tasks) {
+              if (!task.description.includes(current.stringName)) continue
+              this.updateTask({
+                ...task,
+                description: task.description.replaceAll(current.stringName, sample.stringName)
+              })
+            }
+          }
+          this.recordEvent(locationEvent, {
+            locations: samples.map(({ id, stringName, deviceId }) => ({ id, stringName, deviceId }))
+          })
+        }
+        for (const sample of samples) {
+          const current = this.getWorkOrder(sample.id)
+          if (!current) continue
+          const reconfigured = { ...sample, orderNumber: current.orderNumber }
+          this.updateWorkOrder(reconfigured)
+          for (const task of sample.tasks) {
+            const existingTask = current.tasks.find((item) => item.role === task.role)
+            if (existingTask) this.updateTask({ ...task, id: existingTask.id })
+          }
+          // 展示工单状态重新配置时，其任务、PLC 验证和展示记录一并同步。
+          database.prepare('DELETE FROM work_order_events WHERE work_order_id = ?').run(sample.id)
+          this.recordWorkOrderEvent({
+            workOrderId: sample.id,
+            type: 'draft_created',
+            actor: 'builtin-sample',
+            createdAt: sample.createdAt,
+            payload: { sample: true, orderNumber: current.orderNumber }
+          })
+          if (sample.closedAt)
+            this.recordWorkOrderEvent({
+              workOrderId: sample.id,
+              type: 'closed',
+              actor: 'builtin-sample',
+              createdAt: sample.closedAt,
+              payload: { sample: true, plcVerification: sample.plcVerification }
+            })
+        }
+        this.recordEvent(combinationEvent, {
+          samples: samples.map(({ id, stringName, priority, status }) => ({
+            id,
+            stringName,
+            priority,
+            status
+          }))
+        })
+      })
     },
     nextWorkOrderNumber(datePart) {
       const prefix = `GZ-${datePart}-`

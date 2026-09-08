@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import Konva from 'konva'
 import {
   Arrow,
@@ -20,11 +20,12 @@ import motorUrl from '../../../assets/equipment-motor-v4.png'
 import solarUrl from '../../../assets/equipment-solar-v4.png'
 import storageUrl from '../../../assets/equipment-storage-v4.png'
 import towerUrl from '../../../assets/equipment-tower-v4.png'
+import { createFlowPath, getFlowPosition, getFlowTrail, type FlowPath } from './flowAnimation'
 import '../styles/energy-flow.css'
 
-const SCENE_WIDTH = 1124
-const SCENE_HEIGHT = 427
-const DEVICE_IMAGE_SCALE = 0.8
+const SCENE_WIDTH = 1040
+const SCENE_HEIGHT = 620
+const SOLAR_CENTERS = [344, 456, 568, 680]
 const FONT_FAMILY = 'Inter, PingFang SC, Microsoft YaHei, sans-serif'
 
 export type EnergyRouteState = 'normal' | 'disconnected' | 'low'
@@ -45,10 +46,10 @@ const FLOW_STATE_STYLE: Record<
   { color: string; highlight: string; label: string; shadowOpacity: number }
 > = {
   normal: {
-    color: '#32e875',
-    highlight: '#d9ffe5',
-    label: '能源正常',
-    shadowOpacity: 0.72
+    color: '#43d6a0',
+    highlight: '#d5fff0',
+    label: '正常流向',
+    shadowOpacity: 0.36
   },
   disconnected: {
     color: '#697783',
@@ -69,22 +70,22 @@ const STATUS_BADGE_STYLE: Record<
   { fill: string; stroke: string; color: string; dot: string; text: string }
 > = {
   normal: {
-    fill: 'rgba(14, 73, 35, 0.82)',
-    stroke: 'rgba(62, 183, 61, 0.88)',
-    color: '#6de650',
-    dot: '#65e84d',
+    fill: 'rgba(24, 111, 81, 0.16)',
+    stroke: 'rgba(67, 214, 160, 0.3)',
+    color: '#79e5bd',
+    dot: '#43d6a0',
     text: '运行正常'
   },
   low: {
-    fill: 'rgba(92, 70, 12, 0.84)',
+    fill: 'rgba(132, 100, 23, 0.18)',
     stroke: 'rgba(242, 201, 76, 0.9)',
     color: '#ffe48b',
     dot: '#f2c94c',
     text: '参数异常'
   },
   disconnected: {
-    fill: 'rgba(39, 49, 57, 0.88)',
-    stroke: 'rgba(105, 119, 131, 0.9)',
+    fill: 'rgba(64, 81, 96, 0.22)',
+    stroke: 'rgba(105, 119, 131, 0.4)',
     color: '#a7b0b7',
     dot: '#697783',
     text: '无输出'
@@ -131,6 +132,7 @@ type CanvasImageProps = {
   height: number
   crop?: CropArea
   opacity?: number
+  state?: EnergyRouteState
 }
 
 function useCanvasImage(source: string): HTMLImageElement | undefined {
@@ -151,7 +153,7 @@ function useCanvasImage(source: string): HTMLImageElement | undefined {
 }
 
 function getDeviceStateNodeName(state: EnergyRouteState): string {
-  return state === 'normal' ? 'energy-device-state' : 'energy-device-state energy-device-alert'
+  return state === 'low' ? 'energy-device-state energy-device-alert' : 'energy-device-state'
 }
 
 function CanvasImage({
@@ -161,12 +163,14 @@ function CanvasImage({
   width,
   height,
   crop,
-  opacity = 1
+  opacity = 1,
+  state
 }: CanvasImageProps): React.JSX.Element | null {
   if (!image) return null
 
   return (
     <KonvaImage
+      name={state === undefined ? undefined : getDeviceStateNodeName(state)}
       image={image}
       x={x}
       y={y}
@@ -179,138 +183,232 @@ function CanvasImage({
   )
 }
 
-function FlowWire({
-  points,
-  state,
-  arrow = true,
-  reverse = false,
-  width = 3,
-  speed = 'normal'
-}: FlowWireProps): React.JSX.Element {
-  const style = FLOW_STATE_STYLE[state]
-  const isFlowing = state !== 'disconnected'
-  const arrowPoints = points.slice(-4)
-  const animationName = [
-    'energy-flow-dash',
-    reverse ? 'energy-flow-reverse' : 'energy-flow-forward',
-    speed === 'slow' || state === 'low' ? 'energy-flow-slow' : ''
-  ]
-    .filter(Boolean)
-    .join(' ')
+const FlowWire = memo(
+  function FlowWire({
+    points,
+    state,
+    arrow = true,
+    reverse = false,
+    width = 2.5,
+    speed = 'normal'
+  }: FlowWireProps): React.JSX.Element {
+    const style = FLOW_STATE_STYLE[state]
+    const path = useMemo(() => createFlowPath(points, reverse), [points, reverse])
+    const isFlowing = state !== 'disconnected' && path.length > 0
+    const flowSpeed = state === 'low' ? 14 : speed === 'slow' ? 21 : 30
+    const particleCount = Math.max(1, Math.ceil(path.length / 140))
 
-  return (
-    <Group listening={false}>
-      <Line
-        points={points}
-        stroke={style.color}
-        strokeWidth={width}
-        lineCap="round"
-        lineJoin="round"
-        shadowColor={style.color}
-        shadowBlur={7}
-        shadowOpacity={style.shadowOpacity}
-        perfectDrawEnabled={false}
-      />
-      {isFlowing && (
+    return (
+      <Group listening={false}>
         <Line
-          name={animationName}
-          points={points}
-          stroke={style.highlight}
-          strokeWidth={Math.max(1.4, width - 1.2)}
-          lineCap="round"
-          lineJoin="round"
-          dash={[10, 18]}
-          opacity={0.86}
-          shadowColor={style.color}
-          shadowBlur={6}
-          shadowOpacity={0.95}
-          perfectDrawEnabled={false}
-        />
-      )}
-      {arrow && (
-        <Arrow
-          points={arrowPoints}
+          points={path.points}
           stroke={style.color}
-          fill={style.color}
           strokeWidth={width}
-          pointerLength={10}
-          pointerWidth={9}
           lineCap="round"
           lineJoin="round"
           shadowColor={style.color}
-          shadowBlur={6}
+          shadowBlur={4}
           shadowOpacity={style.shadowOpacity}
           perfectDrawEnabled={false}
         />
-      )}
+        {isFlowing && (
+          <Line
+            name="energy-flow-dash"
+            flowSpeed={flowSpeed}
+            points={path.points}
+            stroke={style.highlight}
+            strokeWidth={Math.max(1.4, width - 1.2)}
+            lineCap="round"
+            lineJoin="round"
+            dash={[8, 22]}
+            opacity={0.65}
+            shadowColor={style.color}
+            shadowBlur={3}
+            shadowOpacity={0.45}
+            perfectDrawEnabled={false}
+          />
+        )}
+        {isFlowing &&
+          Array.from({ length: particleCount }, (_, index) => {
+            const offset = ((index + 0.5) / particleCount) * path.length
+            const position = getFlowPosition(path, offset)
+            return (
+              <Group
+                key={index}
+                name="energy-flow-particle"
+                flowPath={path}
+                flowOffset={offset}
+                flowSpeed={flowSpeed}
+                listening={false}
+              >
+                <Line
+                  name="energy-flow-trail"
+                  points={getFlowTrail(path, offset)}
+                  stroke={style.highlight}
+                  strokeWidth={width + 0.5}
+                  lineCap="round"
+                  lineJoin="round"
+                  opacity={0.7}
+                  shadowColor={style.color}
+                  shadowBlur={9}
+                  shadowOpacity={0.85}
+                  perfectDrawEnabled={false}
+                />
+                <Group name="energy-flow-head" x={position.x} y={position.y}>
+                  <Circle radius={width + 4} fill={style.color} opacity={0.18} />
+                  <Circle
+                    radius={width / 2 + 1.5}
+                    fill={style.highlight}
+                    shadowColor={style.color}
+                    shadowBlur={10}
+                    shadowOpacity={1}
+                    perfectDrawEnabled={false}
+                  />
+                </Group>
+              </Group>
+            )
+          })}
+        {arrow && (
+          <Arrow
+            points={path.points.slice(-4)}
+            // Draw only the arrowhead so its shaft cannot cover the moving light.
+            strokeEnabled={false}
+            fill={style.color}
+            strokeWidth={width}
+            pointerLength={7}
+            pointerWidth={7}
+            lineCap="round"
+            lineJoin="round"
+            shadowColor={style.color}
+            shadowBlur={3}
+            shadowOpacity={style.shadowOpacity}
+            perfectDrawEnabled={false}
+          />
+        )}
+      </Group>
+    )
+  },
+  (previous, next) =>
+    previous.state === next.state &&
+    previous.arrow === next.arrow &&
+    previous.reverse === next.reverse &&
+    previous.width === next.width &&
+    previous.speed === next.speed &&
+    previous.points.length === next.points.length &&
+    previous.points.every((value, index) => value === next.points[index])
+)
+
+function StatusBadge({
+  x,
+  y,
+  width = 86,
+  state
+}: {
+  x: number
+  y: number
+  width?: number
+  state: EnergyRouteState
+}): React.JSX.Element {
+  const style = STATUS_BADGE_STYLE[state]
+  return (
+    <Group name={getDeviceStateNodeName(state)} x={x} y={y} listening={false}>
+      <Rect width={width} height={22} cornerRadius={11} fill={style.fill} stroke={style.stroke} />
+      <Circle x={12} y={11} radius={3} fill={style.dot} />
+      <Text
+        x={21}
+        y={6}
+        width={width - 26}
+        text={style.text}
+        fill={style.color}
+        fontFamily={FONT_FAMILY}
+        fontSize={10}
+        align="center"
+      />
     </Group>
   )
 }
 
-function CompactFlowArrow({
-  points,
-  state
+function DeviceAlertFrame({
+  state,
+  x = 0,
+  y = 0,
+  width,
+  height,
+  cornerRadius = 10
 }: {
-  points: number[]
   state: EnergyRouteState
-}): React.JSX.Element {
-  const style = FLOW_STATE_STYLE[state]
+  x?: number
+  y?: number
+  width: number
+  height: number
+  cornerRadius?: number
+}): React.JSX.Element | null {
+  if (state !== 'low') return null
 
   return (
-    <Arrow
-      points={points}
-      stroke={style.color}
-      fill={style.color}
+    <Rect
+      name="energy-device-state energy-device-alert-glow"
+      x={x}
+      y={y}
+      width={width}
+      height={height}
+      cornerRadius={cornerRadius}
+      stroke={FLOW_STATE_STYLE.low.color}
       strokeWidth={2}
-      pointerLength={7}
-      pointerWidth={7}
-      lineCap="round"
-      lineJoin="round"
-      shadowColor={style.color}
-      shadowBlur={2}
-      shadowOpacity={style.shadowOpacity}
-      perfectDrawEnabled={false}
+      fill="rgba(242, 201, 76, 0.1)"
+      shadowColor={FLOW_STATE_STYLE.low.color}
+      shadowBlur={14}
+      shadowOpacity={0.65}
       listening={false}
     />
   )
 }
 
-function StatusBadge({
+function SourceZone({
   x,
-  y,
-  width = 72,
-  text,
-  state = 'normal'
+  width,
+  title,
+  caption,
+  accent
 }: {
   x: number
-  y: number
-  width?: number
-  text?: string
-  state?: EnergyRouteState
+  width: number
+  title: string
+  caption: string
+  accent: string
 }): React.JSX.Element {
-  const style = STATUS_BADGE_STYLE[state]
   return (
-    <Group x={x} y={y} listening={false}>
+    <Group x={x} y={14} listening={false}>
       <Rect
         width={width}
-        height={18}
-        cornerRadius={3}
-        fill={style.fill}
-        stroke={style.stroke}
-        strokeWidth={1}
+        height={334}
+        cornerRadius={12}
+        fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+        fillLinearGradientEndPoint={{ x: 0, y: 334 }}
+        fillLinearGradientColorStops={[0, 'rgba(20, 51, 72, 0.52)', 1, 'rgba(7, 25, 42, 0.24)']}
+        stroke="rgba(68, 115, 146, 0.3)"
       />
-      <Circle x={10} y={9} radius={3.4} fill={style.dot} shadowColor={style.dot} shadowBlur={5} />
+      <Rect x={17} y={21} width={3} height={15} cornerRadius={2} fill={accent} />
       <Text
-        x={17}
-        y={3.5}
-        width={width - 20}
-        text={text ?? style.text}
-        fill={style.color}
+        x={29}
+        y={20}
+        text={title}
+        fill="#e1edf5"
         fontFamily={FONT_FAMILY}
-        fontSize={9}
-        align="center"
-        listening={false}
+        fontSize={15}
+        fontStyle="bold"
       />
+      <Text
+        x={width - 116}
+        y={23}
+        width={98}
+        text={caption}
+        align="right"
+        fill="#7492a8"
+        fontFamily={FONT_FAMILY}
+        fontSize={10}
+      />
+      <Line points={[17, 51, width - 17, 51]} stroke="rgba(76, 123, 153, 0.18)" />
     </Group>
   )
 }
@@ -322,11 +420,8 @@ function DeviceNode({
   imageWidth,
   imageHeight,
   title,
-  containerWidth,
-  crop,
-  titleAbove = false,
-  statusWidth = 72,
-  state = 'normal'
+  state,
+  crop
 }: {
   image?: HTMLImageElement
   centerX: number
@@ -334,50 +429,38 @@ function DeviceNode({
   imageWidth: number
   imageHeight: number
   title: string
-  containerWidth: number
+  state: EnergyRouteState
   crop?: CropArea
-  titleAbove?: boolean
-  statusWidth?: number
-  state?: EnergyRouteState
 }): React.JSX.Element {
-  const scaledImageWidth = imageWidth * DEVICE_IMAGE_SCALE
-  const scaledImageHeight = imageHeight * DEVICE_IMAGE_SCALE
-  const imageY = titleAbove ? 18 : 0
-  const titleY = titleAbove ? 0 : imageY + scaledImageHeight + 3
-  const statusY = titleAbove ? imageY + scaledImageHeight + 4 : titleY + 17
-
   return (
-    <Group
-      name={getDeviceStateNodeName(state)}
-      x={centerX - containerWidth / 2}
-      y={top}
-      listening={false}
-    >
+    <Group x={centerX} y={top} listening={false}>
+      <DeviceAlertFrame
+        state={state}
+        x={-Math.max(imageWidth + 16, 136) / 2}
+        y={-5}
+        width={Math.max(imageWidth + 16, 136)}
+        height={imageHeight + 40}
+      />
       <CanvasImage
         image={image}
-        x={(containerWidth - scaledImageWidth) / 2}
-        y={imageY}
-        width={scaledImageWidth}
-        height={scaledImageHeight}
+        x={-imageWidth / 2}
+        y={0}
+        width={imageWidth}
+        height={imageHeight}
         crop={crop}
-      />
-      <Text
-        x={0}
-        y={titleY}
-        width={containerWidth}
-        text={title}
-        fill="#dfe2e6"
-        fontFamily={FONT_FAMILY}
-        fontSize={11}
-        align="center"
-        listening={false}
-      />
-      <StatusBadge
-        x={(containerWidth - statusWidth) / 2}
-        y={statusY}
-        width={statusWidth}
         state={state}
       />
+      <Text
+        x={-68}
+        y={imageHeight + 6}
+        width={136}
+        text={title}
+        align="center"
+        fill="#c6d9e6"
+        fontFamily={FONT_FAMILY}
+        fontSize={12}
+      />
+      <Circle x={0} y={imageHeight + 30} radius={3} fill={FLOW_STATE_STYLE[state].color} />
     </Group>
   )
 }
@@ -393,29 +476,44 @@ function SolarNode({
   index: number
   state: EnergyRouteState
 }): React.JSX.Element {
-  const imageWidth = 80 * DEVICE_IMAGE_SCALE
-  const imageHeight = 74 * DEVICE_IMAGE_SCALE
-  const style = FLOW_STATE_STYLE[state]
-
   return (
-    <Group name={getDeviceStateNodeName(state)} x={centerX - 42} y={7} listening={false}>
-      <Text
-        width={84}
-        text={`光伏 ${index}`}
-        fill={state === 'normal' ? '#dde0e5' : style.highlight}
-        fontFamily={FONT_FAMILY}
-        fontSize={10}
-        align="center"
+    <Group x={centerX - 46} y={79} listening={false}>
+      <Rect
+        width={92}
+        height={105}
+        cornerRadius={8}
+        fill="rgba(5, 21, 36, 0.55)"
+        stroke="rgba(74, 122, 153, 0.3)"
       />
-      <Circle x={72} y={5} radius={3} fill={style.color} shadowColor={style.color} shadowBlur={5} />
-      <Group clipX={0} clipY={15} clipWidth={84} clipHeight={62}>
-        <CanvasImage
-          image={image}
-          x={(84 - imageWidth) / 2}
-          y={15}
-          width={imageWidth}
-          height={imageHeight}
-          crop={{ x: 18, y: 126, width: 348, height: 322 }}
+      <DeviceAlertFrame state={state} width={92} height={105} cornerRadius={8} />
+      <Text
+        y={10}
+        width={92}
+        text={`光伏组串 ${index}`}
+        align="center"
+        fill="#c6d9e6"
+        fontFamily={FONT_FAMILY}
+        fontSize={11}
+      />
+      <CanvasImage
+        image={image}
+        x={15}
+        y={29}
+        width={62}
+        height={57}
+        crop={{ x: 18, y: 126, width: 348, height: 322 }}
+        state={state}
+      />
+      <Group name={getDeviceStateNodeName(state)}>
+        <Circle x={23} y={94} radius={2.5} fill={FLOW_STATE_STYLE[state].color} />
+        <Text
+          x={31}
+          y={89}
+          width={57}
+          text={STATUS_BADGE_STYLE[state].text}
+          fill={STATUS_BADGE_STYLE[state].color}
+          fontFamily={FONT_FAMILY}
+          fontSize={9}
         />
       </Group>
     </Group>
@@ -424,56 +522,105 @@ function SolarNode({
 
 function ControlNode({
   centerX,
-  top,
+  top = 238,
   width,
   title,
-  state = 'normal'
+  subtitle,
+  state,
+  image
 }: {
   centerX: number
-  top: number
+  top?: number
   width: number
   title: string
-  state?: EnergyRouteState
+  subtitle: string
+  state: EnergyRouteState
+  image?: HTMLImageElement
 }): React.JSX.Element {
   return (
-    <Group name={getDeviceStateNodeName(state)} x={centerX - width / 2} y={top} listening={false}>
+    <Group x={centerX - width / 2} y={top} listening={false}>
       <Rect
         width={width}
-        height={57}
-        cornerRadius={5}
+        height={82}
+        cornerRadius={10}
         fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-        fillLinearGradientEndPoint={{ x: width, y: 57 }}
-        fillLinearGradientColorStops={[0, '#24384a', 1, '#071d2f']}
-        stroke="#5a748b"
-        strokeWidth={1}
+        fillLinearGradientEndPoint={{ x: width, y: 82 }}
+        fillLinearGradientColorStops={[0, '#14344a', 1, '#0a2135']}
+        stroke="#34566e"
         shadowColor="#000"
-        shadowBlur={10}
-        shadowOpacity={0.35}
-        shadowOffsetY={4}
+        shadowBlur={8}
+        shadowOpacity={0.18}
       />
-      <Rect x={10} y={10} width={38} height={36} stroke="#8cd8e5" strokeWidth={2} />
-      <Line points={[15, 38, 42, 17]} stroke="#8cd8e5" strokeWidth={2} lineCap="round" />
-      <Line points={[16, 20, 27, 20]} stroke="#8cd8e5" strokeWidth={2} lineCap="round" />
-      <Line points={[31, 36, 42, 36]} stroke="#8cd8e5" strokeWidth={2} lineCap="round" />
+      <DeviceAlertFrame state={state} width={width} height={82} />
+      {image ? (
+        <CanvasImage image={image} x={13} y={13} width={38} height={53} state={state} />
+      ) : (
+        <Group name={getDeviceStateNodeName(state)} x={15} y={22}>
+          <Rect
+            width={38}
+            height={36}
+            cornerRadius={6}
+            fill="rgba(81, 182, 217, 0.08)"
+            stroke="#659eb5"
+          />
+          <Line points={[7, 28, 31, 8]} stroke="#a0d3e2" strokeWidth={1.5} />
+          <Line points={[8, 11, 17, 11]} stroke="#a0d3e2" strokeWidth={1.5} />
+          <Line points={[22, 26, 31, 26]} stroke="#a0d3e2" strokeWidth={1.5} />
+        </Group>
+      )}
       <Text
-        x={54}
-        y={10}
-        width={width - 67}
+        x={64}
+        y={12}
+        width={width - 72}
         text={title}
-        fill="#e2e4e8"
+        fill="#e0ecf5"
         fontFamily={FONT_FAMILY}
-        fontSize={11}
-        align="center"
+        fontSize={12}
+        fontStyle="bold"
       />
-      <StatusBadge x={57} y={31} width={Math.min(76, width - 70)} state={state} />
-      <Circle
-        x={width - 9}
-        y={42}
-        radius={2.5}
-        fill={FLOW_STATE_STYLE[state].color}
-        shadowColor={FLOW_STATE_STYLE[state].color}
-        shadowBlur={5}
+      <Text
+        x={64}
+        y={31}
+        width={width - 72}
+        text={subtitle}
+        fill="#789aaf"
+        fontFamily={FONT_FAMILY}
+        fontSize={10}
       />
+      <StatusBadge x={64} y={50} state={state} />
+    </Group>
+  )
+}
+
+function StorageNode({
+  image,
+  state
+}: {
+  image?: HTMLImageElement
+  state: EnergyRouteState
+}): React.JSX.Element {
+  return (
+    <Group x={784} y={80} listening={false}>
+      <Rect
+        width={208}
+        height={124}
+        cornerRadius={10}
+        fill="rgba(5, 21, 36, 0.45)"
+        stroke="rgba(74, 122, 153, 0.3)"
+      />
+      <DeviceAlertFrame state={state} width={208} height={124} />
+      <CanvasImage image={image} x={4} y={2} width={90} height={120} state={state} />
+      <Text
+        x={106}
+        y={36}
+        width={94}
+        text="储能系统"
+        fill="#e0ecf5"
+        fontFamily={FONT_FAMILY}
+        fontSize={13}
+        fontStyle="bold"
+      />
+      <StatusBadge x={106} y={62} state={state} />
     </Group>
   )
 }
@@ -483,138 +630,74 @@ function LoadNode({
   centerX,
   title,
   subtitle,
-  crop,
-  state = 'normal'
+  state
 }: {
   image?: HTMLImageElement
   centerX: number
   title: string
   subtitle: string
-  crop: CropArea
-  state?: EnergyRouteState
+  state: EnergyRouteState
 }): React.JSX.Element {
-  const imageWidth = 110 * DEVICE_IMAGE_SCALE
-  const imageHeight = 79 * DEVICE_IMAGE_SCALE
-
   return (
-    <Group name={getDeviceStateNodeName(state)} x={centerX - 56} y={306} listening={false}>
+    <Group x={centerX - 122} y={476} listening={false}>
       <Rect
-        width={112}
-        height={100}
-        cornerRadius={5}
+        width={244}
+        height={122}
+        cornerRadius={12}
         fillLinearGradientStartPoint={{ x: 0, y: 0 }}
-        fillLinearGradientEndPoint={{ x: 112, y: 100 }}
-        fillLinearGradientColorStops={[0, '#26394b', 1, '#091d2e']}
-        stroke="#60798f"
-        strokeWidth={1}
-        shadowColor="#000"
-        shadowBlur={9}
-        shadowOpacity={0.32}
-        shadowOffsetY={4}
+        fillLinearGradientEndPoint={{ x: 244, y: 122 }}
+        fillLinearGradientColorStops={[0, '#102f45', 1, '#091e31']}
+        stroke="rgba(78, 130, 163, 0.5)"
       />
+      <DeviceAlertFrame state={state} width={244} height={122} cornerRadius={12} />
+      <Rect x={12} y={16} width={84} height={90} cornerRadius={10} fill="rgba(5, 20, 33, 0.48)" />
       <CanvasImage
         image={image}
-        x={(112 - imageWidth) / 2}
-        y={1}
-        width={imageWidth}
-        height={imageHeight}
-        crop={crop}
+        x={15}
+        y={22}
+        width={78}
+        height={72}
+        crop={{ x: 14, y: 52, width: 356, height: 327 }}
+        state={state}
       />
-      <Rect x={1} y={64} width={110} height={35} fill="rgba(4, 18, 29, 0.78)" />
+      <Text x={112} y={22} text={title} fill="#829fb3" fontFamily={FONT_FAMILY} fontSize={11} />
       <Text
-        x={2}
-        y={68}
-        width={108}
-        text={title}
-        fill="#e4e5e8"
-        fontFamily={FONT_FAMILY}
-        fontSize={11}
-        align="center"
-      />
-      <Text
-        x={2}
-        y={83}
-        width={108}
+        x={112}
+        y={43}
         text={subtitle}
-        fill="#c8ced5"
+        fill="#e0edf4"
         fontFamily={FONT_FAMILY}
-        fontSize={10}
-        align="center"
+        fontSize={16}
+        fontStyle="bold"
       />
-      <StatusBadge x={20} y={104} state={state} />
+      <StatusBadge x={112} y={77} state={state} />
     </Group>
   )
 }
 
 function BusLabel({ state }: { state: EnergyRouteState }): React.JSX.Element {
-  const style = FLOW_STATE_STYLE[state]
-
   return (
-    <Group name={getDeviceStateNodeName(state)} x={670} y={251} listening={false}>
+    <Group x={408} y={379} listening={false}>
       <Rect
-        width={160}
-        height={32}
-        cornerRadius={4}
-        fill="rgba(5, 27, 43, 0.96)"
-        stroke="#3f899b"
+        width={208}
+        height={42}
+        cornerRadius={21}
+        fill="#0d2b3b"
+        stroke={FLOW_STATE_STYLE[state].color}
         strokeWidth={1}
-        shadowColor={style.color}
-        shadowBlur={8}
-        shadowOpacity={0.25}
       />
+      <DeviceAlertFrame state={state} width={208} height={42} cornerRadius={21} />
+      <Circle x={22} y={21} radius={4} fill={FLOW_STATE_STYLE[state].color} />
       <Text
-        y={6}
-        width={160}
-        text="直流母线 DC"
-        fill="#edf0f2"
+        x={35}
+        y={14}
+        text="直流母线"
+        fill="#e6f6f5"
         fontFamily={FONT_FAMILY}
-        fontSize={15}
-        align="center"
+        fontSize={14}
+        fontStyle="bold"
       />
-      <StatusBadge x={44} y={-20} state={state} />
-    </Group>
-  )
-}
-
-function SceneLegend(): React.JSX.Element {
-  const items: EnergyRouteState[] = ['normal', 'disconnected', 'low']
-
-  return (
-    <Group x={975} y={5} listening={false}>
-      <Rect
-        width={141}
-        height={52}
-        cornerRadius={5}
-        fill="rgba(2, 17, 30, 0.9)"
-        stroke="rgba(27, 101, 151, 0.76)"
-        strokeWidth={1}
-      />
-      {items.map((state, index) => {
-        const style = FLOW_STATE_STYLE[state]
-        const y = 10 + index * 16
-
-        return (
-          <Group key={state}>
-            <Line
-              points={[10, y, 37, y]}
-              stroke={style.color}
-              strokeWidth={3}
-              lineCap="round"
-              shadowColor={style.color}
-              shadowBlur={state === 'disconnected' ? 0 : 4}
-            />
-            <Text
-              x={45}
-              y={y - 5.5}
-              width={90}
-              text={style.label}
-              fill="#d9dfe5"
-              fontFamily={FONT_FAMILY}
-              fontSize={9}
-            />
-          </Group>
-        )
-      })}
+      <Text x={160} y={15} text="DC" fill="#74b6bc" fontFamily={FONT_FAMILY} fontSize={12} />
     </Group>
   )
 }
@@ -629,6 +712,9 @@ export default function EnergyFlowCanvas({
   const containerRef = useRef<HTMLDivElement>(null)
   const wireLayerRef = useRef<Konva.Layer>(null)
   const deviceLayerRef = useRef<Konva.Layer>(null)
+  const [motionEnabled, setMotionEnabled] = useState(
+    () => !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
   const [sceneSize, setSceneSize] = useState<SceneSize>({
     width: SCENE_WIDTH,
     height: SCENE_HEIGHT
@@ -668,13 +754,19 @@ export default function EnergyFlowCanvas({
 
   useEffect(() => {
     const layer = deviceLayerRef.current
-    if (!layer || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (!layer || !motionEnabled) return
 
     const animation = new Konva.Animation((frame) => {
       if (!frame) return
-      const pulseOpacity = 0.58 + ((Math.sin(frame.time / 180) + 1) / 2) * 0.42
+      const pulse = (Math.cos((frame.time / 1800) * Math.PI * 2) + 1) / 2
       layer.find('.energy-device-state').forEach((node) => {
-        node.opacity(node.hasName('energy-device-alert') ? pulseOpacity : 1)
+        node.opacity(
+          node.hasName('energy-device-alert-glow')
+            ? 0.18 + pulse * 0.82
+            : node.hasName('energy-device-alert')
+              ? 0.55 + pulse * 0.45
+              : 1
+        )
       })
     }, layer)
     animation.start()
@@ -683,25 +775,34 @@ export default function EnergyFlowCanvas({
       layer.find('.energy-device-state').forEach((node) => node.opacity(1))
       layer.batchDraw()
     }
-  }, [])
+  }, [motionEnabled])
 
   useEffect(() => {
     const layer = wireLayerRef.current
-    if (!layer || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (!layer || !motionEnabled) return
 
     const animation = new Konva.Animation((frame) => {
       if (!frame) return
       layer.find('.energy-flow-dash').forEach((node) => {
-        const direction = node.hasName('energy-flow-reverse') ? 1 : -1
-        const speed = node.hasName('energy-flow-slow') ? 42 : 27
-        node.setAttr('dashOffset', (frame.time / speed) * direction)
+        const speed = node.getAttr('flowSpeed') as number
+        node.setAttr('dashOffset', -((frame.time / 1000) * speed))
+      })
+      layer.find<Konva.Group>('.energy-flow-particle').forEach((particle) => {
+        const path = particle.getAttr('flowPath') as FlowPath
+        const speed = particle.getAttr('flowSpeed') as number
+        const offset = particle.getAttr('flowOffset') as number
+        const distance = (offset + (frame.time / 1000) * speed) % path.length
+        particle
+          .findOne<Konva.Group>('.energy-flow-head')
+          ?.position(getFlowPosition(path, distance))
+        particle.findOne<Konva.Line>('.energy-flow-trail')?.points(getFlowTrail(path, distance))
       })
     }, layer)
     animation.start()
     return () => {
       animation.stop()
     }
-  }, [])
+  }, [motionEnabled])
 
   const sceneTransform = useMemo(() => {
     const scale = Math.min(sceneSize.width / SCENE_WIDTH, sceneSize.height / SCENE_HEIGHT)
@@ -713,7 +814,26 @@ export default function EnergyFlowCanvas({
   }, [sceneSize])
 
   return (
-    <section className="panel energy-panel energy-panel--konva">
+    <section className="panel energy-panel energy-panel--konva" aria-labelledby="energy-flow-title">
+      <header className="energy-heading">
+        <div className="energy-heading__title">
+          <span className="energy-heading__mark" aria-hidden="true">
+            ϟ
+          </span>
+          <div>
+            <h2 id="energy-flow-title">实时能源流向</h2>
+            <p>光 · 储 · 直 · 柔协同拓扑</p>
+          </div>
+        </div>
+        <div className="energy-legend" aria-label="能源流向状态图例">
+          {(['normal', 'disconnected', 'low'] as const).map((state) => (
+            <span key={state}>
+              <i style={{ backgroundColor: FLOW_STATE_STYLE[state].color }} />
+              {FLOW_STATE_STYLE[state].label}
+            </span>
+          ))}
+        </div>
+      </header>
       <div
         ref={containerRef}
         className="konva-energy-canvas"
@@ -722,6 +842,34 @@ export default function EnergyFlowCanvas({
       >
         <Stage width={sceneSize.width} height={sceneSize.height} listening={false}>
           <Layer
+            x={sceneTransform.x}
+            y={sceneTransform.y}
+            scaleX={sceneTransform.scale}
+            scaleY={sceneTransform.scale}
+            listening={false}
+          >
+            <SourceZone x={16} width={248} title="电网接入" caption="AC / DC" accent="#5eb9ef" />
+            <SourceZone x={280} width={456} title="光伏发电" caption="4 路组串" accent="#43d6a0" />
+            <SourceZone x={752} width={272} title="储能调节" caption="双向变换" accent="#a3a1ed" />
+            <Rect
+              x={70}
+              y={366}
+              width={904}
+              height={68}
+              cornerRadius={12}
+              fill="rgba(29, 106, 99, 0.07)"
+              stroke="rgba(64, 152, 139, 0.14)"
+            />
+            <Text
+              x={22}
+              y={452}
+              text="负载分配"
+              fill="#7e9eb3"
+              fontFamily={FONT_FAMILY}
+              fontSize={11}
+            />
+          </Layer>
+          <Layer
             ref={wireLayerRef}
             x={sceneTransform.x}
             y={sceneTransform.y}
@@ -729,40 +877,48 @@ export default function EnergyFlowCanvas({
             scaleY={sceneTransform.scale}
             listening={false}
           >
-            <FlowWire points={[107, 185, 177, 185]} state={states.grid} />
-            <FlowWire points={[223, 185, 265, 185]} state={states.grid} />
-            <FlowWire points={[265, 185, 309, 185]} state={states.grid} />
-
-            <FlowWire points={[395, 196, 445, 196, 460, 211, 460, 258]} state={states.converter} />
-            <FlowWire points={[460, 258, 460, 267]} state={states.converter} arrow={false} />
-
-            <FlowWire points={[450, 76, 450, 119]} state={solarStates[0]} />
-            <FlowWire points={[575, 76, 575, 119]} state={solarStates[1]} />
-            <FlowWire points={[700, 76, 700, 119]} state={solarStates[2]} />
-            <FlowWire points={[825, 76, 825, 119]} state={solarStates[3]} />
+            <FlowWire points={[111, 128, 169, 128]} state={states.grid} />
+            <FlowWire points={[199, 187, 199, 211, 140, 211, 140, 238]} state={states.grid} />
+            <FlowWire points={[140, 320, 140, 400]} state={states.converter} />
+            {SOLAR_CENTERS.map((centerX, index) => (
+              <FlowWire
+                key={centerX}
+                points={[centerX, 184, centerX, 209]}
+                state={solarStates[index]}
+              />
+            ))}
+            <FlowWire points={[344, 209, 508, 209]} state={states.photovoltaic} arrow={false} />
+            <FlowWire points={[680, 209, 508, 209]} state={states.photovoltaic} arrow={false} />
+            <FlowWire points={[508, 209, 508, 238]} state={states.photovoltaic} />
+            <FlowWire points={[508, 320, 508, 370]} state={states.photovoltaic} />
+            <FlowWire points={[508, 370, 508, 400]} state={states.photovoltaic} arrow={false} />
+            <FlowWire points={[876, 204, 876, 258]} state={states.storage} />
+            <FlowWire points={[900, 258, 900, 204]} state={states.storage} />
+            <FlowWire points={[880, 340, 880, 390]} state={states.storage} />
+            <FlowWire points={[880, 390, 880, 400]} state={states.storage} arrow={false} />
+            <FlowWire points={[896, 400, 896, 340]} state={states.storage} />
             <FlowWire
-              points={[450, 119, 825, 119]}
-              state={states.photovoltaic}
-              arrow={false}
-              speed="slow"
-            />
-            <FlowWire points={[638, 119, 638, 143]} state={states.photovoltaic} />
-            <FlowWire points={[638, 198, 638, 231]} state={states.photovoltaic} />
-            <FlowWire points={[638, 231, 638, 258]} state={states.photovoltaic} />
-            <FlowWire points={[638, 258, 638, 267]} state={states.photovoltaic} arrow={false} />
-
-            <FlowWire
-              points={[455, 267, 1050, 267]}
+              points={[110, 400, 934, 400]}
               state={states.dcBus}
               arrow={false}
-              width={5}
+              width={4}
               speed="slow"
             />
-            <FlowWire points={[530, 267, 530, 307]} state={states.primaryLoad} />
-            <FlowWire points={[750, 267, 750, 307]} state={states.secondaryLoad} />
-            <FlowWire points={[920, 267, 920, 307]} state={states.tertiaryLoad} />
+            <FlowWire points={[212, 400, 212, 476]} state={states.primaryLoad} />
+            <FlowWire points={[520, 400, 520, 476]} state={states.secondaryLoad} />
+            <FlowWire points={[828, 400, 828, 476]} state={states.tertiaryLoad} />
+            {[140, 212, 508, 520, 828, 880, 896].map((x) => (
+              <Circle
+                key={x}
+                x={x}
+                y={400}
+                radius={3.5}
+                fill="#092335"
+                stroke={FLOW_STATE_STYLE[states.dcBus].color}
+                strokeWidth={1.5}
+              />
+            ))}
           </Layer>
-
           <Layer
             ref={deviceLayerRef}
             x={sceneTransform.x}
@@ -771,122 +927,121 @@ export default function EnergyFlowCanvas({
             scaleY={sceneTransform.scale}
             listening={false}
           >
-            <Text
-              x={18}
-              y={15}
-              text="实时能源流向"
-              fill="#ece8e9"
-              fontFamily={FONT_FAMILY}
-              fontSize={17}
-            />
-            <SceneLegend />
-            <Text
-              x={230}
-              y={168}
-              text="交流 AC"
-              fill="#dce5ec"
-              fontFamily={FONT_FAMILY}
-              fontSize={11}
-              fontStyle="bold"
-            />
-
             <DeviceNode
               image={towerImage}
-              centerX={70}
-              top={103}
-              imageWidth={90}
-              imageHeight={135}
+              centerX={80}
+              top={79}
+              imageWidth={64}
+              imageHeight={96}
               title="电网"
-              containerWidth={110}
               state={states.grid}
             />
             <DeviceNode
               image={communicationImage}
-              centerX={200}
-              top={153}
-              imageWidth={54}
-              imageHeight={64}
+              centerX={199}
+              top={94}
+              imageWidth={52}
+              imageHeight={62}
               title="电网通信接口"
-              containerWidth={116}
               state={states.grid}
             />
-            <DeviceNode
+            <ControlNode
+              centerX={140}
+              width={204}
+              title="双向变流器"
+              subtitle="AC / DC"
               image={converterImage}
-              centerX={350}
-              top={103}
-              imageWidth={100}
-              imageHeight={135}
-              title="AC/DC 双向变流器"
-              containerWidth={155}
-              statusWidth={78}
               state={states.converter}
             />
-
-            <SolarNode image={solarImage} centerX={450} index={1} state={solarStates[0]} />
-            <SolarNode image={solarImage} centerX={575} index={2} state={solarStates[1]} />
-            <SolarNode image={solarImage} centerX={700} index={3} state={solarStates[2]} />
-            <SolarNode image={solarImage} centerX={825} index={4} state={solarStates[3]} />
+            {SOLAR_CENTERS.map((centerX, index) => (
+              <SolarNode
+                key={centerX}
+                image={solarImage}
+                centerX={centerX}
+                index={index + 1}
+                state={solarStates[index]}
+              />
+            ))}
             <ControlNode
-              centerX={638}
-              top={143}
-              width={174}
-              title="光伏汇流 / DC/DC"
+              centerX={508}
+              width={208}
+              title="光伏汇流"
+              subtitle="DC / DC"
               state={states.photovoltaic}
             />
-
-            <DeviceNode
-              image={storageImage}
-              centerX={970}
-              top={60}
-              imageWidth={112}
-              imageHeight={90}
-              crop={{ x: 18, y: 112, width: 348, height: 279 }}
-              title="储能系统"
-              containerWidth={150}
-              titleAbove
-              state={states.storage}
+            <StorageNode image={storageImage} state={states.storage} />
+            <Text
+              x={826}
+              y={225}
+              width={38}
+              text="放电"
+              align="right"
+              fill="#8aaabb"
+              fontFamily={FONT_FAMILY}
+              fontSize={11}
+            />
+            <Text
+              x={912}
+              y={225}
+              width={38}
+              text="充电"
+              fill="#8aaabb"
+              fontFamily={FONT_FAMILY}
+              fontSize={11}
             />
             <ControlNode
-              centerX={970}
-              top={201}
-              width={154}
+              centerX={888}
+              top={258}
+              width={208}
               title="双向 DC/DC"
+              subtitle="储能充放电"
               state={states.storage}
             />
             <BusLabel state={states.dcBus} />
-
             <LoadNode
               image={bulbImage}
-              centerX={530}
+              centerX={212}
               title="一级负载"
               subtitle="直流灯"
-              crop={{ x: 14, y: 52, width: 356, height: 327 }}
               state={states.primaryLoad}
             />
             <LoadNode
               image={fanImage}
-              centerX={750}
+              centerX={520}
               title="二级负载"
               subtitle="直流风扇"
-              crop={{ x: 14, y: 52, width: 356, height: 327 }}
               state={states.secondaryLoad}
             />
             <LoadNode
               image={motorImage}
-              centerX={920}
+              centerX={828}
               title="三级负载"
               subtitle="直流电机"
-              crop={{ x: 14, y: 52, width: 356, height: 327 }}
               state={states.tertiaryLoad}
             />
-
-            <CompactFlowArrow points={[962, 172, 962, 200]} state={states.storage} />
-            <CompactFlowArrow points={[978, 201, 978, 173]} state={states.storage} />
-            <CompactFlowArrow points={[962, 258, 962, 266]} state={states.storage} />
-            <CompactFlowArrow points={[978, 267, 978, 259]} state={states.storage} />
           </Layer>
         </Stage>
       </div>
+      <footer className="energy-footer">
+        <span>
+          <i aria-hidden="true" /> 箭头表示能量传输方向
+        </span>
+        <div className="energy-footer__actions">
+          <span>
+            4 路光伏接入 <b /> 3 级直流负载
+          </span>
+          <button
+            type="button"
+            className="energy-motion-control"
+            onClick={() => setMotionEnabled((enabled) => !enabled)}
+            aria-pressed={!motionEnabled}
+            aria-label={motionEnabled ? '暂停能源流向动画' : '播放能源流向动画'}
+          >
+            <span aria-hidden="true">{motionEnabled ? 'Ⅱ' : '▷'}</span>
+            {motionEnabled ? '暂停动效' : '播放动效'}
+          </button>
+        </div>
+      </footer>
     </section>
   )
 }

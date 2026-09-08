@@ -60,10 +60,11 @@ async function action(task: WorkOrderTask, name: string, body: object = {}): Pro
   return response.workOrder
 }
 
-async function taskFor(role: 'A' | 'B' | 'C'): Promise<WorkOrderTask> {
+async function taskFor(role: 'A' | 'B' | 'C', workOrderId: string): Promise<WorkOrderTask> {
   const response = await request<WorkOrderTaskListResponse>(`/api/tasks?role=${role}`)
-  check(response.items.length === 1, `${role} Pad 应且仅应收到 1 条任务`)
-  return response.items[0]
+  const tasks = response.items.filter((task) => task.workOrderId === workOrderId)
+  check(tasks.length === 1, `${role} Pad 应且仅应收到该工单的 1 条任务`)
+  return tasks[0]
 }
 
 async function run(): Promise<void> {
@@ -76,6 +77,18 @@ async function run(): Promise<void> {
   })
 
   try {
+    const initial = await request<WorkOrderListResponse>('/api/work-orders')
+    check(initial.total === 4, '首次启动应内置 4 条工单')
+    check(
+      initial.items.filter((order) => order.status === 'closed').length === 2,
+      '应有 2 条已处理工单'
+    )
+    check(
+      initial.items
+        .slice(0, 2)
+        .every((order) => order.status === 'pending_review' && order.priority === 'normal'),
+      '2 条普通待审核工单应排在已处理工单之前'
+    )
     const deletePreflight = await fetch(`${ORIGIN}/api/work-orders/cors-check`, {
       method: 'OPTIONS',
       headers: {
@@ -118,7 +131,16 @@ async function run(): Promise<void> {
     check(duplicateDraft.workOrder.id === firstDraft.workOrder.id, '去重后应返回原工单')
 
     const hiddenBeforeDispatch = await request<WorkOrderTaskListResponse>('/api/tasks?role=C')
-    check(hiddenBeforeDispatch.items.length === 0, '未下达工单不能出现在 Pad')
+    check(
+      hiddenBeforeDispatch.items.every((task) => task.workOrderId !== firstDraft.workOrder.id),
+      '未下达工单不能出现在 Pad'
+    )
+
+    const firstPage = await request<WorkOrderListResponse>('/api/work-orders?limit=1')
+    check(
+      firstPage.items[0].id === firstDraft.workOrder.id,
+      '紧急未处理工单应在分页前排到普通工单前面'
+    )
 
     const dispatched = await request<WorkOrderResponse>(
       `/api/work-orders/${firstDraft.workOrder.id}/dispatch`,
@@ -126,9 +148,9 @@ async function run(): Promise<void> {
     )
     check(dispatched.workOrder.status === 'dispatched', '审核后应进入已下达状态')
 
-    const taskA = await taskFor('A')
-    const taskB = await taskFor('B')
-    const taskC = await taskFor('C')
+    const taskA = await taskFor('A', firstDraft.workOrder.id)
+    const taskB = await taskFor('B', firstDraft.workOrder.id)
+    const taskC = await taskFor('C', firstDraft.workOrder.id)
     await expectStatus(`/api/tasks/${taskC.id}/start`, 409, {
       method: 'POST',
       body: '{}'
@@ -189,9 +211,16 @@ async function run(): Promise<void> {
     check(deleted.deleted, '删除接口应返回成功状态')
     check(deleted.orderNumber === closed.orderNumber, '删除接口返回的工单编号不正确')
     const afterDelete = await request<WorkOrderListResponse>('/api/work-orders')
-    check(afterDelete.total === 0 && afterDelete.items.length === 0, '删除后工单列表应为空')
+    check(
+      afterDelete.total === initial.total &&
+        afterDelete.items.every((order) => order.id !== firstDraft.workOrder.id),
+      '删除后应仅保留内置工单'
+    )
     const tasksAfterDelete = await request<WorkOrderTaskListResponse>('/api/tasks?role=A')
-    check(tasksAfterDelete.total === 0, '删除工单后关联任务应级联删除')
+    check(
+      tasksAfterDelete.items.every((task) => task.workOrderId !== firstDraft.workOrder.id),
+      '删除工单后关联任务应级联删除'
+    )
     await expectStatus(`/api/work-orders/${firstDraft.workOrder.id}`, 404, { method: 'GET' })
     await expectStatus(`/api/work-orders/${firstDraft.workOrder.id}`, 404, { method: 'DELETE' })
     process.stdout.write(`工单闭环及删除验证通过：${closed.orderNumber}\n`)

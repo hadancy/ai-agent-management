@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { STATION_TIME_ZONE } from '../../../../../shared/plc-clock'
+import { compareWorkOrders } from '../../../../../shared/work-order-sort'
 import {
   deleteWorkOrder,
   dispatchWorkOrder,
@@ -43,6 +45,8 @@ const RESULT_LABELS: Record<string, string> = {
   restorationConfirmed: '恢复连接',
   powerRestored: '恢复送电',
   hotspotConfirmed: '热斑确认',
+  faultConfirmed: '故障确认',
+  treatmentSummary: '处理记录',
   treatmentAction: '处理方式',
   retestPassed: '复测结果',
   measuredTemperature: '测量温度',
@@ -65,11 +69,19 @@ const FLOW_STATUSES: WorkOrderStatus[] = [
   'closed'
 ]
 
+const DETAIL_TABS = [
+  { id: 'overview', label: '工单概览' },
+  { id: 'tasks', label: '人员任务' },
+  { id: 'verification', label: '设备验证' }
+] as const
+type DetailTab = (typeof DETAIL_TABS)[number]['id']
+
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return '—'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return new Intl.DateTimeFormat('zh-CN', {
+    timeZone: STATION_TIME_ZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -135,7 +147,11 @@ function TaskCard({
         <span className="work-task__role">{task.role}</span>
         <div>
           <strong>{task.assigneeName}</strong>
-          <small>{ROLE_META[task.role].title}</small>
+          <small>
+            {task.role === 'C' && task.title !== '热斑确认与处理'
+              ? '现场检查与处理'
+              : ROLE_META[task.role].title}
+          </small>
         </div>
         <em className={`task-state task-state--${task.status}`}>
           {TASK_STATUS_LABEL[task.status]}
@@ -246,14 +262,16 @@ function PadAccessPanel({
   }
 
   return (
-    <section className="pad-access" aria-labelledby="pad-access-title">
-      <div className="pad-access__heading">
+    <details className="pad-access">
+      <summary className="pad-access__heading">
         <div>
-          <span>Pad 端入口</span>
-          <h4 id="pad-access-title">A / B / C 维修员工地址</h4>
+          <strong>员工 Pad 访问地址</strong>
+          <span>展开后可复制 A / B / C 员工的专属入口</span>
         </div>
-        <p>首次使用时，将对应地址发送到员工 Pad；打开后会自动绑定身份。</p>
-      </div>
+        <span className="pad-access__chevron" aria-hidden="true">
+          ⌄
+        </span>
+      </summary>
       <div className="pad-access__addresses">
         {addresses.map(({ role, assigneeName, address }) => (
           <div className={`pad-access__item pad-access__item--${role.toLowerCase()}`} key={role}>
@@ -276,7 +294,7 @@ function PadAccessPanel({
       <p className={copyError ? 'pad-access__tip pad-access__tip--error' : 'pad-access__tip'}>
         {copyError ?? 'Pad 与本机需连接同一局域网；地址中的 role 参数用于区分 A、B、C 员工。'}
       </p>
-    </section>
+    </details>
   )
 }
 
@@ -349,18 +367,21 @@ export default function WorkOrderCenter({
   padUrl,
   refreshToken,
   onBack,
+  onOpenAssistant,
   onCountChange
 }: {
   serviceOrigin: string
   padUrl?: string
   refreshToken: number
   onBack: () => void
+  onOpenAssistant: () => void
   onCountChange?: (count: number) => void
 }): React.JSX.Element {
   const [orders, setOrders] = useState<WorkOrder[]>([])
   const [total, setTotal] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selected, setSelected] = useState<WorkOrder | null>(null)
+  const [detailTab, setDetailTab] = useState<DetailTab>('overview')
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -375,6 +396,7 @@ export default function WorkOrderCenter({
   const dispatchingRef = useRef(false)
   const deletingRef = useRef(false)
   const selectedIdRef = useRef<string | null>(null)
+  const sortedOrders = useMemo(() => [...orders].sort(compareWorkOrders), [orders])
 
   const counts = useMemo(
     () => ({
@@ -413,7 +435,8 @@ export default function WorkOrderCenter({
         const selectedStillExists = response.items.find(
           (order) => order.id === selectedIdRef.current
         )
-        const nextSelected = selectedStillExists ?? response.items[0] ?? null
+        const nextSelected =
+          selectedStillExists ?? [...response.items].sort(compareWorkOrders)[0] ?? null
         selectedIdRef.current = nextSelected?.id ?? null
         setSelectedId(nextSelected?.id ?? null)
         setSelected(nextSelected)
@@ -472,6 +495,7 @@ export default function WorkOrderCenter({
     selectedIdRef.current = order.id
     setSelectedId(order.id)
     setSelected(order)
+    setDetailTab('overview')
   }
 
   const handleDispatch = async (): Promise<void> => {
@@ -512,13 +536,14 @@ export default function WorkOrderCenter({
     setNotice(null)
     try {
       const result = await deleteWorkOrder(serviceOrigin, deletedId, deleteTarget.orderNumber)
-      const remaining = orders.filter((order) => order.id !== deletedId)
+      const remaining = sortedOrders.filter((order) => order.id !== deletedId)
       const nextSelected = remaining[0] ?? null
       setOrders(remaining)
       setTotal((current) => Math.max(0, current - 1))
       selectedIdRef.current = nextSelected?.id ?? null
       setSelectedId(nextSelected?.id ?? null)
       setSelected(nextSelected)
+      setDetailTab('overview')
       setDeleteTarget(null)
       setError(null)
       setNotice(`工单 ${result.orderNumber} 已删除。`)
@@ -546,8 +571,18 @@ export default function WorkOrderCenter({
       <section className="work-order-page" aria-labelledby="work-order-title">
         <div className="work-order-page__heading">
           <div>
-            <span>运维任务管理</span>
-            <h2 id="work-order-title">工单中心</h2>
+            <div className="work-order-page__title-row">
+              <h2 id="work-order-title">工单中心</h2>
+              <span className="work-order-priority-tip" role="note">
+                <span className="work-order-priority-tip__icon" aria-hidden="true">
+                  !
+                </span>
+                请优先处理高等级的工单。
+              </span>
+            </div>
+            <p className="work-order-page__subtitle">
+              未处理工单按等级从高到低排列，已处理工单置后。
+            </p>
           </div>
           <div className="work-order-page__actions">
             <button type="button" onClick={requestRefresh} disabled={refreshing}>
@@ -606,48 +641,58 @@ export default function WorkOrderCenter({
                 <span>共 {total} 条</span>
               </div>
               <div className="work-order-list__items">
-                {orders.map((order) => (
-                  <button
-                    type="button"
-                    key={order.id}
-                    className={
-                      order.id === selectedId
-                        ? 'work-order-card work-order-card--active'
-                        : 'work-order-card'
-                    }
-                    onClick={() => selectOrder(order)}
-                  >
-                    <div>
-                      <strong>{order.orderNumber}</strong>
-                      <span className={`order-state order-state--${order.status}`}>
-                        {STATUS_META[order.status].label}
-                      </span>
-                    </div>
-                    <h4>{order.faultType}故障处理</h4>
-                    <p>
-                      {order.stationName} · {order.componentName}
-                    </p>
-                    <div className="work-order-card__tasks" aria-label="A B C 任务进度">
-                      {(['A', 'B', 'C'] as const).map((role) => {
-                        const task = order.tasks.find((item) => item.role === role)
-                        return (
-                          <i
-                            key={role}
-                            className={task ? `task-dot task-dot--${task.status}` : 'task-dot'}
-                          >
-                            {role}
-                          </i>
-                        )
-                      })}
-                    </div>
-                    <footer>
-                      <span className={`priority priority--${order.priority}`}>
-                        {order.priority === 'urgent' ? '紧急' : '普通'}
-                      </span>
-                      <time dateTime={order.createdAt}>{formatDateTime(order.createdAt)}</time>
-                    </footer>
-                  </button>
-                ))}
+                {[
+                  { label: '未处理', closed: false },
+                  { label: '已处理', closed: true }
+                ].map((group) => {
+                  const items = sortedOrders.filter(
+                    (order) => (order.status === 'closed') === group.closed
+                  )
+                  if (items.length === 0) return null
+                  return (
+                    <section
+                      className="work-order-list__group"
+                      key={group.label}
+                      aria-label={group.label}
+                    >
+                      <h4 className="work-order-list__group-title">
+                        {group.label}
+                        <span>{items.length}</span>
+                      </h4>
+                      {items.map((order) => (
+                        <button
+                          type="button"
+                          key={order.id}
+                          className={`work-order-card${order.id === selectedId ? ' work-order-card--active' : ''}`}
+                          aria-pressed={order.id === selectedId}
+                          onClick={() => selectOrder(order)}
+                        >
+                          <div className="work-order-card__topline">
+                            <h4>{order.faultType}</h4>
+                            <span className={`order-state order-state--${order.status}`}>
+                              {STATUS_META[order.status].label}
+                            </span>
+                          </div>
+                          <p>
+                            <span className={`priority priority--${order.priority}`}>
+                              {order.priority === 'urgent' ? '紧急' : '普通'}
+                            </span>
+                            <span>
+                              {order.stringName} · {order.componentName}
+                            </span>
+                          </p>
+                          <footer>
+                            <span>{order.orderNumber}</span>
+                            <span>
+                              {order.tasks.filter((task) => task.status === 'submitted').length}/3
+                              已提交
+                            </span>
+                          </footer>
+                        </button>
+                      ))}
+                    </section>
+                  )
+                })}
               </div>
             </div>
 
@@ -657,13 +702,28 @@ export default function WorkOrderCenter({
                   <div>
                     <span>{selected.orderNumber}</span>
                     <h3>{selected.faultType}故障处理</h3>
-                    <p>{STATUS_META[selected.status].description}</p>
+                    <div className="work-order-detail__status">
+                      <span className={`priority priority--${selected.priority}`}>
+                        {selected.priority === 'urgent' ? '紧急' : '普通'}
+                      </span>
+                      <span className={`order-state order-state--${selected.status}`}>
+                        {STATUS_META[selected.status].label}
+                      </span>
+                      <p>{STATUS_META[selected.status].description}</p>
+                    </div>
                   </div>
                   <div className="work-order-detail__heading-actions">
                     {detailLoading && <small>正在同步…</small>}
-                    <strong className={`order-state order-state--${selected.status}`}>
-                      {STATUS_META[selected.status].label}
-                    </strong>
+                    {selected.status === 'pending_review' && (
+                      <button
+                        type="button"
+                        className="work-order-dispatch-button"
+                        onClick={handleDispatch}
+                        disabled={dispatching || deleting}
+                      >
+                        {dispatching ? '正在下达…' : '审核并下达工单'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="work-order-delete-button"
@@ -675,126 +735,220 @@ export default function WorkOrderCenter({
                   </div>
                 </div>
 
-                <div className="work-order-detail__scroll">
-                  <dl className="work-order-meta">
-                    <div>
-                      <dt>场站名称</dt>
-                      <dd>{selected.stationName}</dd>
-                    </div>
-                    <div>
-                      <dt>故障位置</dt>
-                      <dd>
-                        {selected.stringName} · {selected.componentName}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>优先级</dt>
-                      <dd className={selected.priority === 'urgent' ? 'meta-urgent' : undefined}>
-                        {selected.priority === 'urgent' ? '紧急' : '普通'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>创建时间</dt>
-                      <dd>{formatDateTime(selected.createdAt)}</dd>
-                    </div>
-                    <div>
-                      <dt>审核时间</dt>
-                      <dd>{formatDateTime(selected.reviewedAt)}</dd>
-                    </div>
-                    <div>
-                      <dt>关单时间</dt>
-                      <dd>{formatDateTime(selected.closedAt)}</dd>
-                    </div>
-                  </dl>
-
-                  <div className="work-order-diagnosis">
-                    <section>
-                      <span>报警数据</span>
-                      <h4>
-                        {formatNumber(selected.alarm.voltage)} V
-                        <i />
-                        {formatNumber(selected.alarm.current)} A
-                      </h4>
-                      <p>
-                        正常区间：{formatNumber(selected.normalRange.voltageMin)}–
-                        {formatNumber(selected.normalRange.voltageMax)} V /{' '}
-                        {formatNumber(selected.normalRange.currentMin)}–
-                        {formatNumber(selected.normalRange.currentMax)} A
-                      </p>
-                    </section>
-                    <section>
-                      <span>处理建议</span>
-                      <h4>{selected.handlingSuggestion}</h4>
-                      <p>结束条件：A/B/C 全部提交且 PLC 连续 5 次正常</p>
-                    </section>
-                  </div>
-
-                  <PadAccessPanel padUrl={padUrl} tasks={selected.tasks} />
-
-                  {selected.status === 'pending_review' && (
-                    <section className="dispatch-review">
-                      <div>
-                        <span>人工审核</span>
-                        <h4>下达前请确认工单内容</h4>
-                        <p>下达后，A、B、C 三台 Pad 将立即收到各自任务和风险提示。</p>
-                      </div>
-                      <ul>
-                        <li>故障位置与报警数据已确认</li>
-                        <li>A/B/C 人员任务与风险点已确认</li>
-                        <li>自动结束条件已确认</li>
-                      </ul>
-                      <button type="button" onClick={handleDispatch} disabled={dispatching}>
-                        {dispatching ? '正在下达…' : '审核并下达工单'}
-                      </button>
-                    </section>
-                  )}
-
-                  <section className="work-order-task-section">
-                    <div className="section-title">
-                      <div>
-                        <span>任务执行</span>
-                        <h4>A / B / C 个人任务与回填</h4>
-                      </div>
-                      <strong>
-                        {selected.tasks.filter((task) => task.status === 'submitted').length}/3
-                        已提交
-                      </strong>
-                    </div>
-                    <div className="work-task-grid">
-                      {([...selected.tasks] as WorkOrderTask[])
-                        .sort((left, right) => left.role.localeCompare(right.role))
-                        .map((task) => (
-                          <TaskCard task={task} workOrderStatus={selected.status} key={task.id} />
+                <div className="work-order-tabs" role="tablist" aria-label="工单详情">
+                  {DETAIL_TABS.map((tab, index) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      id={`work-order-tab-${tab.id}`}
+                      aria-selected={detailTab === tab.id}
+                      aria-controls={`work-order-panel-${tab.id}`}
+                      tabIndex={detailTab === tab.id ? 0 : -1}
+                      onClick={() => setDetailTab(tab.id)}
+                      onKeyDown={(event) => {
+                        const nextIndex =
+                          event.key === 'ArrowRight'
+                            ? (index + 1) % DETAIL_TABS.length
+                            : event.key === 'ArrowLeft'
+                              ? (index + DETAIL_TABS.length - 1) % DETAIL_TABS.length
+                              : event.key === 'Home'
+                                ? 0
+                                : event.key === 'End'
+                                  ? DETAIL_TABS.length - 1
+                                  : null
+                        if (nextIndex === null) return
+                        event.preventDefault()
+                        const nextTab = DETAIL_TABS[nextIndex].id
+                        setDetailTab(nextTab)
+                        document.getElementById(`work-order-tab-${nextTab}`)?.focus()
+                      }}
+                    >
+                      {tab.label}
+                      {tab.id === 'tasks' && (
+                        <span>
+                          {selected.tasks.filter((task) => task.status === 'submitted').length}/3
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <div
+                  className="work-order-detail__scroll"
+                  key={`${selected.id}-${detailTab}`}
+                  role="tabpanel"
+                  id={`work-order-panel-${detailTab}`}
+                  aria-labelledby={`work-order-tab-${detailTab}`}
+                  tabIndex={0}
+                >
+                  {detailTab === 'overview' && (
+                    <>
+                      <div className="work-order-flow" aria-label="工单处理流程">
+                        {FLOW_STATUSES.map((status, index) => (
+                          <div className="work-order-flow__unit" key={status}>
+                            <div
+                              aria-current={index === currentFlowIndex ? 'step' : undefined}
+                              className={
+                                index < currentFlowIndex
+                                  ? 'work-order-flow__step work-order-flow__step--done'
+                                  : index === currentFlowIndex
+                                    ? 'work-order-flow__step work-order-flow__step--current'
+                                    : 'work-order-flow__step'
+                              }
+                            >
+                              <i>{index < currentFlowIndex ? '✓' : index + 1}</i>
+                              <span>{STATUS_META[status].label}</span>
+                            </div>
+                            {index < FLOW_STATUSES.length - 1 && (
+                              <b
+                                className={index < currentFlowIndex ? 'flow-line--done' : undefined}
+                              />
+                            )}
+                          </div>
                         ))}
-                    </div>
-                  </section>
-
-                  <PlcVerificationCard
-                    verification={selected.plcVerification}
-                    status={selected.status}
-                  />
-
-                  <div className="work-order-flow">
-                    {FLOW_STATUSES.map((status, index) => (
-                      <div className="work-order-flow__unit" key={status}>
-                        <div
-                          className={
-                            index < currentFlowIndex
-                              ? 'work-order-flow__step work-order-flow__step--done'
-                              : index === currentFlowIndex
-                                ? 'work-order-flow__step work-order-flow__step--current'
-                                : 'work-order-flow__step'
-                          }
-                        >
-                          <i>{index < currentFlowIndex ? '✓' : index + 1}</i>
-                          <span>{STATUS_META[status].label}</span>
-                        </div>
-                        {index < FLOW_STATUSES.length - 1 && (
-                          <b className={index < currentFlowIndex ? 'flow-line--done' : undefined} />
-                        )}
                       </div>
-                    ))}
-                  </div>
+                      <div className="work-order-overview-grid">
+                        <section>
+                          <h4 className="work-order-section-heading">基本信息</h4>
+                          <dl className="work-order-meta">
+                            <div>
+                              <dt>场站名称</dt>
+                              <dd>{selected.stationName}</dd>
+                            </div>
+                            <div>
+                              <dt>故障位置</dt>
+                              <dd>
+                                {selected.stringName} · {selected.componentName}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>优先级</dt>
+                              <dd
+                                className={
+                                  selected.priority === 'urgent' ? 'meta-urgent' : undefined
+                                }
+                              >
+                                {selected.priority === 'urgent' ? '紧急' : '普通'}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>创建时间</dt>
+                              <dd>{formatDateTime(selected.createdAt)}</dd>
+                            </div>
+                            <div>
+                              <dt>审核时间</dt>
+                              <dd>{formatDateTime(selected.reviewedAt)}</dd>
+                            </div>
+                            <div>
+                              <dt>关单时间</dt>
+                              <dd>{formatDateTime(selected.closedAt)}</dd>
+                            </div>
+                          </dl>
+                        </section>
+                        <div className="work-order-diagnosis">
+                          <section>
+                            <span>报警数据</span>
+                            <h4>
+                              {formatNumber(selected.alarm.voltage)} V
+                              <i />
+                              {formatNumber(selected.alarm.current)} A
+                            </h4>
+                            <p>
+                              正常区间：{formatNumber(selected.normalRange.voltageMin)}–
+                              {formatNumber(selected.normalRange.voltageMax)} V /{' '}
+                              {formatNumber(selected.normalRange.currentMin)}–
+                              {formatNumber(selected.normalRange.currentMax)} A
+                            </p>
+                          </section>
+                          <section>
+                            <span>处理建议</span>
+                            <h4>{selected.handlingSuggestion}</h4>
+                            <p>结束条件：A/B/C 全部提交且 PLC 连续 5 次正常</p>
+                          </section>
+                        </div>
+                      </div>
+                      {selected.status === 'pending_review' && (
+                        <section className="dispatch-review">
+                          <div>
+                            <h4>下达前，请核对工单信息</h4>
+                            <p>
+                              确认故障位置、报警数据、人员分工与风险点后，点击右上方「审核并下达工单」。
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDetailTab('tasks')
+                              document.getElementById('work-order-tab-tasks')?.focus()
+                            }}
+                          >
+                            查看人员任务 →
+                          </button>
+                        </section>
+                      )}
+                    </>
+                  )}
+                  {detailTab === 'tasks' && (
+                    <>
+                      <section className="work-order-task-section">
+                        <div className="section-title">
+                          <div>
+                            <span>任务执行</span>
+                            <h4>A / B / C 个人任务与回填</h4>
+                          </div>
+                          <strong>
+                            {selected.tasks.filter((task) => task.status === 'submitted').length}/3
+                            已提交
+                          </strong>
+                        </div>
+                        <div className="work-task-grid">
+                          {([...selected.tasks] as WorkOrderTask[])
+                            .sort((left, right) => left.role.localeCompare(right.role))
+                            .map((task) => (
+                              <TaskCard
+                                task={task}
+                                workOrderStatus={selected.status}
+                                key={task.id}
+                              />
+                            ))}
+                        </div>
+                      </section>
+
+                      <PadAccessPanel padUrl={padUrl} tasks={selected.tasks} />
+                    </>
+                  )}
+                  {detailTab === 'verification' && (
+                    <>
+                      <section className="work-order-verification-intro">
+                        <span>自动关单条件</span>
+                        <h4>
+                          {selected.status === 'closed'
+                            ? '人员任务与设备验证均已完成'
+                            : '人员任务完成后，自动验证设备恢复情况'}
+                        </h4>
+                        <p>
+                          A / B / C 员工全部提交合格结果，且 PLC 连续 5
+                          次采样正常，工单将自动转为已处理。
+                        </p>
+                        <div>
+                          <span>
+                            人员任务{' '}
+                            <strong>
+                              {selected.tasks.filter((task) => task.status === 'submitted').length}{' '}
+                              / 3 已提交
+                            </strong>
+                          </span>
+                          <span>
+                            关单时间 <strong>{formatDateTime(selected.closedAt)}</strong>
+                          </span>
+                        </div>
+                      </section>
+                      <PlcVerificationCard
+                        verification={selected.plcVerification}
+                        status={selected.status}
+                      />
+                    </>
+                  )}
                 </div>
               </article>
             ) : (
@@ -806,8 +960,8 @@ export default function WorkOrderCenter({
             <span>▤</span>
             <h3>暂无工单</h3>
             <p>在 AI 智能体对话中上传故障图片后，系统将生成待审核草稿。</p>
-            <button type="button" onClick={onBack}>
-              前往综合监控
+            <button type="button" onClick={onOpenAssistant}>
+              前往 AI 智能助手
             </button>
           </div>
         )}

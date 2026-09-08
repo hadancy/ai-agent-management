@@ -5,6 +5,7 @@ import {
   type PhotovoltaicSettings
 } from './photovoltaicSettings'
 import '../styles/settings-center.css'
+import { plcServiceOrigin } from '../../plc/api'
 
 type DraftSettings = {
   normalVoltage: string
@@ -77,10 +78,14 @@ export default function SettingsCenter({
           <h2>设置中心</h2>
           <p>配置光伏组串的正常运行基准，能源流向和实时告警将立即使用该规则。</p>
         </div>
-        <div className="settings-rule-state">
-          <i />
-          规则已启用
-        </div>
+        <a
+          className="settings-rule-state"
+          href={`${plcServiceOrigin()}/plc`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          PLC 点位调试 ↗
+        </a>
       </div>
 
       <div className="settings-grid">

@@ -1,10 +1,12 @@
 import { useMemo } from 'react'
-import type { DeviceRiskSource } from '../types'
+import { STATION_TIME_ZONE } from '../../../../../shared/plc-clock'
+import type { ConsoleNav } from '../types'
 
-const NAV_ITEMS = ['综合监控', '工单中心', '设置中心']
+const NAV_ITEMS: ConsoleNav[] = ['首页', '综合监控', 'AI 智能助手', '工单中心', '设置中心']
 
 function formatClock(date: Date): string {
   return new Intl.DateTimeFormat('zh-CN', {
+    timeZone: STATION_TIME_ZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -19,16 +21,16 @@ function formatClock(date: Date): string {
 
 export default function MonitorHeader({
   activeNav,
-  alarmSource,
+  hasAlarm,
   clock,
   plcOnline,
   onNavChange
 }: {
-  activeNav: string
-  alarmSource?: DeviceRiskSource
+  activeNav: ConsoleNav
+  hasAlarm: boolean
   clock: Date
   plcOnline: boolean
-  onNavChange: (item: string) => void
+  onNavChange: (item: ConsoleNav) => void
 }): React.JSX.Element {
   const clockText = useMemo(() => formatClock(clock), [clock])
 
@@ -44,6 +46,7 @@ export default function MonitorHeader({
           <button
             type="button"
             className={activeNav === item ? 'nav-item nav-item--active' : 'nav-item'}
+            aria-current={activeNav === item ? 'page' : undefined}
             onClick={() => onNavChange(item)}
             key={item}
           >
@@ -58,17 +61,13 @@ export default function MonitorHeader({
         </span>
         <span
           className={
-            alarmSource
+            hasAlarm
               ? 'header-state header-state--activity header-state--warning'
               : 'header-state header-state--activity'
           }
         >
           <i />
-          {alarmSource === 'realtime'
-            ? '1项活动告警'
-            : alarmSource === 'prediction'
-              ? '1项预测告警'
-              : '无活动告警'}
+          {hasAlarm ? '1项活动告警' : '无活动告警'}
         </span>
         <b />
         <time dateTime={clock.toISOString()}>

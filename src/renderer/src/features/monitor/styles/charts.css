@@ -1,11 +1,17 @@
 .chart-grid {
+  min-width: 0;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 542px 1fr;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
 .chart-panel {
-  min-height: 278px;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 42px 23px minmax(0, 1fr);
+  padding-bottom: 8px;
 }
 
 .chart-heading {
@@ -149,7 +155,7 @@
 
 .chart-wrap {
   position: relative;
-  height: 205px;
+  min-height: 0;
   padding: 0 5px;
 }
 

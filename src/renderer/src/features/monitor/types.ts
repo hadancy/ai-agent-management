@@ -1,3 +1,6 @@
+export type ConsoleNav = '首页' | '综合监控' | 'AI 智能助手' | '工单中心' | '设置中心'
+export type MonitorSection = 'energy' | 'forecast'
+
 export type StringMetric = {
   name: string
   voltage: number
@@ -36,17 +39,14 @@ export type ForecastRisk = {
   monthEndCurrent: number
 }
 
-export type DeviceRiskSource = 'realtime' | 'prediction'
-
 export type DeviceRiskAlarm = {
   id: string
-  source: DeviceRiskSource
-  sourceLabel: string
-  deviceName: string
   message: string
-  detail: string
-  voltage: number
-  current: number
-  statusIndex?: number
-  monthEndSummary?: string
+  normalRangeDescription: string
+  devices: Array<{
+    id: string
+    name: string
+    realtime?: StringMetric
+    prediction?: ForecastRisk
+  }>
 }

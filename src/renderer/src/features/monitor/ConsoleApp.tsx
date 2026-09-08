@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtime } from '../../realtime'
-import AiAssistant from './ai/AiAssistant'
+import AiAssistantPage from './ai/AiAssistantPage'
 import RiskAlarmDialog from './alerts/RiskAlarmDialog'
-import { createPredictionRiskAlarm, detectRealtimeRisk } from './alerts/riskDetection'
+import { detectDeviceRisk } from './alerts/riskDetection'
 import ForecastChart from './charts/ForecastChart'
 import { createForecastModel } from './charts/forecastSimulation'
 import RealtimeChart from './charts/RealtimeChart'
@@ -10,6 +10,7 @@ import MonitorHeader from './components/MonitorHeader'
 import WindowTitleBar from './components/WindowTitleBar'
 import { BASE_STRING_METRICS } from './data'
 import EnergyFlowCanvas from './energy/EnergyFlowCanvas'
+import HomePage from './home/HomePage'
 import MetricOverview from './metrics/MetricOverview'
 import SettingsCenter from './settings/SettingsCenter'
 import {
@@ -19,8 +20,7 @@ import {
   savePhotovoltaicSettings,
   type PhotovoltaicSettings
 } from './settings/photovoltaicSettings'
-import type { StringMetric } from './types'
-import Workflow from './workflow/Workflow'
+import type { ConsoleNav, MonitorSection, StringMetric } from './types'
 import { createWorkOrderDraft, listWorkOrders } from './workorder/api'
 import WorkOrderCenter from './workorder/WorkOrderCenter'
 import './styles/console-layout.css'
@@ -33,6 +33,7 @@ export default function ConsoleApp(): React.JSX.Element {
   const [clock, setClock] = useState(new Date())
   const {
     telemetry,
+    connectionState,
     telemetryHistory,
     plcClockOffsetMs,
     systemInfo,
@@ -56,12 +57,14 @@ export default function ConsoleApp(): React.JSX.Element {
       ? { name: device.name, voltage: device.voltage, current: device.current }
       : { name: '蓄电池组', voltage: 0, current: 0 }
   }, [telemetry])
-  const [activeNav, setActiveNav] = useState('综合监控')
+  const [activeNav, setActiveNav] = useState<ConsoleNav>('首页')
+  const [focusedSection, setFocusedSection] = useState<MonitorSection>()
   const [photovoltaicSettings, setPhotovoltaicSettings] =
     useState<PhotovoltaicSettings>(loadPhotovoltaicSettings)
   const [viewportScale, setViewportScale] = useState(1)
   const [alarmOpen, setAlarmOpen] = useState(false)
   const [workOrderCount, setWorkOrderCount] = useState(0)
+  const [workOrdersLoaded, setWorkOrdersLoaded] = useState(false)
   const [localWorkOrderRevision, setLocalWorkOrderRevision] = useState(0)
   const knownWorkOrderStatusesRef = useRef<Map<string, string> | null>(null)
   const forecastModel = useMemo(
@@ -89,18 +92,16 @@ export default function ConsoleApp(): React.JSX.Element {
       return 'disconnected' as const
     return device.status === 'warning' ? ('low' as const) : ('normal' as const)
   }, [telemetry])
-  const predictionAlarm = useMemo(
-    () => createPredictionRiskAlarm(forecastModel.activeRisk),
-    [forecastModel.activeRisk]
-  )
-  const realtimeAlarm = useMemo(
+  const activeAlarm = useMemo(
     () =>
-      telemetry?.plcConnected === true ? detectRealtimeRisk(metrics, photovoltaicSettings) : null,
-    [metrics, photovoltaicSettings, telemetry?.plcConnected]
+      detectDeviceRisk(
+        telemetry?.plcConnected === true ? metrics : [],
+        photovoltaicSettings,
+        forecastModel.activeRisk
+      ),
+    [forecastModel.activeRisk, metrics, photovoltaicSettings, telemetry?.plcConnected]
   )
-  const activeAlarm = predictionAlarm ?? realtimeAlarm
   const activeAlarmId = activeAlarm?.id
-  const activeAlarmSource = activeAlarm?.source
   const closeAlarm = useCallback(() => setAlarmOpen(false), [])
   const createWorkOrder = useCallback(async () => {
     const firstString = telemetry?.devices.find((device) => device.id === 'pv-1')
@@ -131,10 +132,28 @@ export default function ConsoleApp(): React.JSX.Element {
     setPhotovoltaicSettings(settings)
   }, [])
 
+  const navigate = useCallback((page: ConsoleNav, section?: MonitorSection): void => {
+    setFocusedSection(section)
+    setActiveNav(page)
+  }, [])
+
+  useEffect(() => {
+    if (activeNav !== '综合监控' || !focusedSection) return
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`monitor-${focusedSection}`)?.focus({ preventScroll: true })
+    })
+    const timer = window.setTimeout(() => setFocusedSection(undefined), 2600)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [activeNav, focusedSection])
+
   useEffect(() => {
     const controller = new AbortController()
     void listWorkOrders(serviceOrigin, controller.signal)
       .then((response) => {
+        setWorkOrdersLoaded(true)
         setWorkOrderCount(response.items.filter((order) => order.status !== 'closed').length)
 
         const previousStatuses = knownWorkOrderStatusesRef.current
@@ -181,13 +200,9 @@ export default function ConsoleApp(): React.JSX.Element {
   }, [plcClockOffsetMs])
 
   useEffect(() => {
-    if (!activeAlarmId) return
-    const timer = window.setTimeout(
-      () => setAlarmOpen(true),
-      activeAlarmSource === 'realtime' ? 0 : 800
-    )
+    const timer = window.setTimeout(() => setAlarmOpen(Boolean(activeAlarmId)), 0)
     return () => window.clearTimeout(timer)
-  }, [activeAlarmId, activeAlarmSource])
+  }, [activeAlarmId])
 
   useEffect(() => {
     const syncViewportScale = (): void => {
@@ -204,18 +219,26 @@ export default function ConsoleApp(): React.JSX.Element {
   return (
     <div className="console-viewport">
       <div
-        className="console-shell"
+        className={`console-shell${activeNav === '首页' ? ' console-shell--home' : ''}`}
         style={{ transform: `translate(-50%, -50%) scale(${viewportScale})` }}
       >
         <WindowTitleBar />
         <MonitorHeader
           activeNav={activeNav}
-          alarmSource={activeAlarmSource}
+          hasAlarm={Boolean(activeAlarm)}
           clock={clock}
           plcOnline={telemetry?.plcConnected === true}
-          onNavChange={setActiveNav}
+          onNavChange={navigate}
         />
-        {activeNav === '设置中心' ? (
+        {activeNav === '首页' ? (
+          <HomePage
+            telemetry={telemetry}
+            connectionState={connectionState}
+            workOrderCount={workOrdersLoaded ? workOrderCount : null}
+            alarmCount={Number(Boolean(activeAlarm))}
+            onNavigate={navigate}
+          />
+        ) : activeNav === '设置中心' ? (
           <main className="console-main console-main--settings">
             <SettingsCenter settings={photovoltaicSettings} onSave={updatePhotovoltaicSettings} />
           </main>
@@ -226,11 +249,22 @@ export default function ConsoleApp(): React.JSX.Element {
               padUrl={systemInfo?.padUrl}
               refreshToken={workOrderRevision + localWorkOrderRevision}
               onBack={() => setActiveNav('综合监控')}
+              onOpenAssistant={() => navigate('AI 智能助手')}
               onCountChange={updateWorkOrderCount}
             />
           </main>
+        ) : activeNav === 'AI 智能助手' ? (
+          <main className="console-main console-main--assistant">
+            <AiAssistantPage
+              workOrderCount={workOrdersLoaded ? workOrderCount : null}
+              plcOnline={connectionState === 'connected' && telemetry?.plcConnected === true}
+              onWorkOrderCreated={createWorkOrder}
+              onViewWorkOrder={viewWorkOrder}
+              onOpenMonitor={() => navigate('综合监控')}
+            />
+          </main>
         ) : (
-          <main className="console-main">
+          <main className="console-main console-main--monitor">
             <MetricOverview
               metrics={metrics}
               battery={battery}
@@ -238,20 +272,28 @@ export default function ConsoleApp(): React.JSX.Element {
               batteryState={batteryState}
             />
             <section className="dashboard-grid">
-              <div className="dashboard-left">
+              <div
+                id="monitor-energy"
+                tabIndex={-1}
+                aria-label="能源流向"
+                className={`monitor-section${focusedSection === 'energy' ? ' monitor-section--focused' : ''}`}
+              >
                 <EnergyFlowCanvas
                   routeStates={{ photovoltaic: photovoltaicRouteState }}
                   photovoltaicStates={photovoltaicStates}
                 />
-                <div className="chart-grid">
-                  <RealtimeChart history={telemetryHistory} plcClockOffsetMs={plcClockOffsetMs} />
+              </div>
+              <div className="chart-grid">
+                <RealtimeChart history={telemetryHistory} plcClockOffsetMs={plcClockOffsetMs} />
+                <div
+                  id="monitor-forecast"
+                  tabIndex={-1}
+                  aria-label="预测预警"
+                  className={`monitor-section${focusedSection === 'forecast' ? ' monitor-section--focused' : ''}`}
+                >
                   <ForecastChart model={forecastModel} onRiskClick={() => setAlarmOpen(true)} />
                 </div>
               </div>
-              <aside className="dashboard-right">
-                <AiAssistant onWorkOrderCreated={createWorkOrder} onViewWorkOrder={viewWorkOrder} />
-                <Workflow workOrderCount={workOrderCount} />
-              </aside>
             </section>
           </main>
         )}

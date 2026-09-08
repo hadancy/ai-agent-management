@@ -24,7 +24,7 @@
 .console-header {
   height: 62px;
   display: grid;
-  grid-template-columns: 514px 456px 1fr;
+  grid-template-columns: 550px 570px minmax(0, 1fr);
   align-items: stretch;
   border-bottom: 1px solid #0d85bd;
   background: rgba(1, 9, 18, 0.94);
@@ -71,8 +71,8 @@
 
 .nav-item {
   position: relative;
-  min-width: 114px;
-  padding: 0 22px;
+  min-width: 94px;
+  padding: 0 18px;
   color: #bfb9bc;
   background: transparent;
   font-size: 17px;
@@ -109,8 +109,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0;
-  padding: 0 25px 0 160px;
+  gap: 20px;
+  padding: 0 25px 0 36px;
   color: #c7c0c3;
   white-space: nowrap;
   font-size: 14px;
@@ -170,25 +170,37 @@
   padding: 13px 21px 18px 16px;
 }
 
-.dashboard-grid {
+.console-main--monitor {
+  height: calc(977px - 62px - 34px);
   display: grid;
-  grid-template-columns: minmax(0, 2.23fr) minmax(390px, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.dashboard-grid {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 10px;
 }
 
-.dashboard-left,
-.dashboard-right {
+.monitor-section {
   min-width: 0;
-  display: grid;
-  gap: 8px;
+  min-height: 0;
+  height: 100%;
+  border-radius: 8px;
+  outline: none;
 }
 
-.dashboard-left {
-  grid-template-rows: 450px 280px;
+.monitor-section > .panel {
+  height: 100%;
 }
 
-.dashboard-right {
-  grid-template-rows: 580px 150px;
+.monitor-section--focused {
+  outline: 2px solid #66e5f7;
+  outline-offset: 3px;
+  box-shadow: 0 0 28px #37d6ff55;
 }
 
 .panel {

@@ -8,6 +8,7 @@ import type { ServerEvent, SystemInfo, TelemetrySnapshot } from '../../shared/co
 import { getWifiLanAddress } from '../network'
 import { PlcTcpCollector, SimulatedCollector, type DataCollector } from './collector'
 import { createAppDatabase } from './database'
+import { registerPlcRoutes } from './plc-routes'
 import { registerWorkOrderRoutes, WorkOrderService } from './work-orders'
 
 export interface EmbeddedServerOptions {
@@ -55,6 +56,7 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
   const port = options.port ?? 17880
   const host = getWifiLanAddress()
   const database = createAppDatabase(options.dataDirectory)
+  database.seedBuiltInWorkOrders()
   const collector = createCollector()
   const clients = new Set<WebSocket>()
   const app = Fastify({ logger: false })
@@ -107,12 +109,31 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
     return latestSnapshot
   })
   registerWorkOrderRoutes(app, workOrders)
+  registerPlcRoutes(app, {
+    config: {
+      pageUrl: `http://${host}:${port}/plc`,
+      collectorMode: collector.mode,
+      connection: {
+        host: process.env['PLC_HOST'] ?? '192.168.0.1',
+        port: readIntegerEnvironment('PLC_PORT', 503),
+        unitId: readIntegerEnvironment('PLC_UNIT_ID', 1),
+        registerAddressOffset: readIntegerEnvironment('PLC_REGISTER_OFFSET', 0)
+      }
+    },
+    developmentRendererUrl: options.developmentRendererUrl,
+    recordEvent: (type, payload) => database.recordEvent(type, payload)
+  })
 
   if (options.developmentRendererUrl) {
     app.get('/', async (_request, reply) => reply.redirect(options.developmentRendererUrl!))
     app.get('/b', async (_request, reply) => reply.redirect(options.developmentRendererUrl!))
     app.get('/c', async (request, reply) => {
       return reply.redirect(replaceUrlHost(options.developmentRendererUrl!, host, request.url))
+    })
+    app.get('/plc', async (request, reply) => {
+      return reply.redirect(
+        replaceUrlHost(options.developmentRendererUrl!, request.hostname, request.url)
+      )
     })
   } else if (existsSync(join(options.rendererDirectory, 'index.html'))) {
     await app.register(fastifyStatic, {
@@ -121,6 +142,7 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
     })
     app.get('/b', async (_request, reply) => reply.sendFile('index.html'))
     app.get('/c', async (_request, reply) => reply.sendFile('index.html'))
+    app.get('/plc', async (_request, reply) => reply.sendFile('index.html'))
   }
 
   app.server.on('upgrade', (request, socket, head) => {

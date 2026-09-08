@@ -26,6 +26,8 @@ import type {
   WorkOrderTreatmentAction
 } from '../../shared/contracts'
 import type { AppDatabase } from './database'
+import { PlcSynchronizedClock, STATION_TIME_ZONE } from '../../shared/plc-clock'
+import { compareWorkOrders } from '../../shared/work-order-sort'
 
 const DEFAULT_NORMAL_VOLTAGE = 613
 const DEFAULT_NORMAL_CURRENT = 9.4
@@ -140,7 +142,7 @@ function roundRange(value: number): number {
 
 function shanghaiDatePart(date: Date): string {
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Shanghai',
+    timeZone: STATION_TIME_ZONE,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'
@@ -335,7 +337,14 @@ function getTaskContext(
 }
 
 export class WorkOrderService {
+  private readonly plcClock = new PlcSynchronizedClock()
+
   constructor(private readonly options: WorkOrderServiceOptions) {}
+
+  private now(): Date {
+    this.plcClock.update(this.options.getLatestSnapshot())
+    return this.plcClock.now()
+  }
 
   createDraft(value: unknown): CreateWorkOrderDraftResponse {
     if (value !== undefined && !isRecord(value)) {
@@ -376,7 +385,7 @@ export class WorkOrderService {
     const voltage = readNumber(input.voltage, latestDevice?.voltage ?? normalVoltage, 'voltage')
     const current = readNumber(input.current, latestDevice?.current ?? normalCurrent, 'current')
     const tolerance = tolerancePercent / 100
-    const now = new Date()
+    const now = this.now()
     const timestamp = now.toISOString()
     const dedupeKey = [stationName, deviceId, componentName, faultType]
       .map((part) => part.trim().toLocaleLowerCase('zh-CN'))
@@ -469,7 +478,10 @@ export class WorkOrderService {
     items: WorkOrder[]
     total: number
   } {
-    const all = this.options.database.listWorkOrders(status).map(hydrateWorkOrder)
+    const all = this.options.database
+      .listWorkOrders(status)
+      .sort(compareWorkOrders)
+      .map(hydrateWorkOrder)
     return { items: all.slice(offset, offset + limit), total: all.length }
   }
 
@@ -492,7 +504,7 @@ export class WorkOrderService {
         id: current.id,
         orderNumber: current.orderNumber,
         status: current.status,
-        deletedAt: new Date().toISOString()
+        deletedAt: this.now().toISOString()
       })
       return { deleted: true, id: current.id, orderNumber: current.orderNumber } as const
     })
@@ -513,7 +525,7 @@ export class WorkOrderService {
       if (!current) throw new WorkOrderRequestError(404, 'WORK_ORDER_NOT_FOUND', '工单不存在')
       if (current.status !== 'pending_review') return hydrateWorkOrder(current)
 
-      const timestamp = new Date().toISOString()
+      const timestamp = this.now().toISOString()
       current.status = 'dispatched'
       current.reviewedBy = reviewer
       current.reviewedAt = timestamp
@@ -562,7 +574,7 @@ export class WorkOrderService {
           task.blockedReason ?? '当前不能开始此任务'
         )
       }
-      const timestamp = new Date().toISOString()
+      const timestamp = this.now().toISOString()
       task.status = 'in_progress'
       task.startedAt = timestamp
       task.updatedAt = timestamp
@@ -617,7 +629,7 @@ export class WorkOrderService {
         (previous?.checkpointNotes ?? undefined) === input.notes
       if (sameResult) return { task, workOrder, changed: false }
 
-      const timestamp = new Date().toISOString()
+      const timestamp = this.now().toISOString()
       const passed =
         input.isolationConfirmed && input.voltageTestPassed && input.safetyMeasuresConfirmed
       task.result = {
@@ -685,7 +697,7 @@ export class WorkOrderService {
         task.result = { role: 'C', ...parseTreatmentResult(value) } satisfies TreatmentTaskResult
       }
 
-      const timestamp = new Date().toISOString()
+      const timestamp = this.now().toISOString()
       task.status = 'submitted'
       task.submittedAt = timestamp
       task.updatedAt = timestamp
@@ -737,6 +749,11 @@ export class WorkOrderService {
   }
 
   processTelemetry(snapshot: TelemetrySnapshot): void {
+    this.plcClock.update(snapshot)
+    const capturedAtMs = Date.parse(snapshot.timestamp)
+    const timestamp = this.plcClock
+      .now(Number.isFinite(capturedAtMs) ? capturedAtMs : Date.now())
+      .toISOString()
     const candidates = this.options.database.listVerifyingWorkOrders()
     for (const candidate of candidates) {
       const update = this.options.database.runInTransaction(() => {
@@ -781,13 +798,13 @@ export class WorkOrderService {
         current.plcVerification.lastVoltage = device?.voltage ?? null
         current.plcVerification.lastCurrent = device?.current ?? null
         current.plcVerification.lastSampleNormal = sampleNormal
-        current.updatedAt = snapshot.timestamp
+        current.updatedAt = timestamp
         const closed =
           current.plcVerification.consecutiveNormalSamples >=
           current.plcVerification.requiredConsecutiveSamples
         if (closed) {
           current.status = 'closed'
-          current.closedAt = snapshot.timestamp
+          current.closedAt = timestamp
         }
         this.options.database.updateWorkOrder(current)
 
@@ -798,7 +815,7 @@ export class WorkOrderService {
             workOrderId: current.id,
             type: 'plc_sample_checked',
             actor: 'plc',
-            createdAt: snapshot.timestamp,
+            createdAt: timestamp,
             payload: {
               sequence: snapshot.sequence,
               connected,
@@ -817,7 +834,7 @@ export class WorkOrderService {
             workOrderId: current.id,
             type: 'closed',
             actor: 'platform-b',
-            createdAt: snapshot.timestamp,
+            createdAt: timestamp,
             payload: {
               reason: 'PLC电压和电流连续5次处于工单固化的正常范围',
               voltage: device?.voltage,

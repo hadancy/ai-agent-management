@@ -104,8 +104,18 @@ export interface TreatmentTaskResult {
   notes?: string
 }
 
+export interface EquipmentInspectionTaskResult {
+  role: 'C'
+  faultConfirmed: boolean
+  treatmentSummary: string
+  retestPassed: boolean
+}
+
 export type WorkOrderTaskResult =
-  SafetyMonitorTaskResult | IsolationTaskResult | TreatmentTaskResult
+  | SafetyMonitorTaskResult
+  | IsolationTaskResult
+  | TreatmentTaskResult
+  | EquipmentInspectionTaskResult
 
 export interface WorkOrderTask {
   id: string

@@ -11,6 +11,9 @@
 
 .forecast-alert {
   width: min(460px, calc(100vw - 36px));
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   position: relative;
   padding: 24px 26px 22px;
@@ -23,6 +26,24 @@
     0 24px 70px rgba(0, 0, 0, 0.58),
     inset 0 0 28px rgba(246, 170, 38, 0.05);
   color: #eaf2f7;
+}
+
+.forecast-alert > :not(.forecast-alert__devices) {
+  flex-shrink: 0;
+}
+
+.forecast-alert__devices {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.forecast-alert__devices .forecast-alert__device {
+  margin: 12px 0;
+}
+
+.forecast-alert__devices .forecast-alert__metrics + .forecast-alert__detail {
+  margin-top: 12px;
 }
 
 .forecast-alert__signal {

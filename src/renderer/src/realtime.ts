@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ServerEvent, SystemInfo, TelemetrySnapshot } from '../../shared/contracts'
+import { PlcSynchronizedClock } from '../../shared/plc-clock'
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected'
 
@@ -32,18 +33,10 @@ export function useRealtime(): {
     let socket: WebSocket | undefined
     let reconnectTimer: number | undefined
     let lastHistorySampleAt = 0
-    let lastRawPlcTimestamp: string | undefined
+    const plcClock = new PlcSynchronizedClock()
 
     const acceptTelemetry = (snapshot: TelemetrySnapshot): void => {
-      const rawPlcTimestamp = snapshot.plcClock?.timestamp ?? undefined
-      if (rawPlcTimestamp && rawPlcTimestamp !== lastRawPlcTimestamp) {
-        const plcTimeMs = Date.parse(rawPlcTimestamp)
-        const capturedAtMs = Date.parse(snapshot.timestamp)
-        if (!Number.isNaN(plcTimeMs) && !Number.isNaN(capturedAtMs)) {
-          lastRawPlcTimestamp = rawPlcTimestamp
-          setPlcClockOffsetMs(plcTimeMs - capturedAtMs)
-        }
-      }
+      setPlcClockOffsetMs(plcClock.update(snapshot))
       setTelemetry(snapshot)
       if (snapshot.plcConnected === false) return
       const sampleAt = Date.parse(snapshot.timestamp)
