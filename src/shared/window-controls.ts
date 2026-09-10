@@ -12,4 +12,6 @@ export interface WindowControlsAPI {
 
 export interface DesktopAPI {
   windowControls: WindowControlsAPI
+  speechSettings: SpeechSettingsAPI
 }
+import type { SpeechSettingsAPI } from './speech-settings'

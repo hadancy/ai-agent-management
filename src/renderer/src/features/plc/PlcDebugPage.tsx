@@ -3,6 +3,7 @@ import {
   PLC_CLOCK_FIELDS,
   PLC_POINTS,
   validatePlcClock,
+  validatePlcPointValue,
   type PlcClockValues,
   type PlcConfigResponse,
   type PlcConnection,
@@ -38,7 +39,7 @@ function toClockDraft(clock: PlcClockValues): ClockDraft {
 
 function formatValue(value: number | null | undefined): string {
   if (value === undefined) return '—'
-  if (value === null) return '无效 REAL'
+  if (value === null) return '无效数值'
   return String(Number(value.toPrecision(8)))
 }
 
@@ -131,7 +132,10 @@ export default function PlcDebugPage(): React.JSX.Element {
     })
   const validValue = (id: PlcPointId): boolean => {
     const value = draft[id]
-    return value !== undefined && value.trim() !== '' && Number.isFinite(Math.fround(Number(value)))
+    const point = PLC_POINTS.find((point) => point.id === id)!
+    return (
+      value !== undefined && value.trim() !== '' && !validatePlcPointValue(point, Number(value))
+    )
   }
   const parsedClock = Object.fromEntries(
     PLC_CLOCK_FIELDS.map((field) => [
@@ -440,12 +444,15 @@ export default function PlcDebugPage(): React.JSX.Element {
                     </td>
                     <td>
                       <strong>{point.label}</strong>
-                      <span className="plc-type">REAL · 32 位浮点</span>
+                      <span className="plc-type">
+                        {point.type === 'WORD' ? 'WORD · 16 位无符号 · ÷1000' : 'REAL · 32 位浮点'}
+                      </span>
                     </td>
                     <td>
                       <code>{point.address}</code>
                       <span className="plc-type">
-                        HR{register}–{register + 1}
+                        HR{register}
+                        {point.type === 'REAL' ? `–${register + 1}` : ''}
                       </span>
                     </td>
                     <td className="plc-current" title={String(snapshot?.values[point.id] ?? '')}>
@@ -455,9 +462,16 @@ export default function PlcDebugPage(): React.JSX.Element {
                       <div className="plc-value-input">
                         <input
                           type="number"
-                          step="any"
+                          step={point.type === 'WORD' ? 1 / point.scale : 'any'}
+                          min={point.type === 'WORD' ? 0 : undefined}
+                          max={point.type === 'WORD' ? 65535 / point.scale : undefined}
                           aria-label={`${point.label}待写入值`}
-                          placeholder="输入数值"
+                          placeholder={point.type === 'WORD' ? '0–65.535' : '输入数值'}
+                          title={
+                            point.type === 'WORD'
+                              ? '输入换算后的数值（0–65.535，最多3位小数），写入时自动乘以1000'
+                              : '输入32位浮点数'
+                          }
                           disabled={Boolean(busy) || !snapshot}
                           value={draft[point.id] ?? ''}
                           onChange={(event) =>

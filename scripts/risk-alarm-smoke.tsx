@@ -49,21 +49,48 @@ async function runRiskAlarmSmoke(): Promise<string[]> {
 
   const spoken: string[] = []
   let canceled = 0
-  class TestUtterance {
-    onstart?: () => void
-    constructor(public text: string) {}
-  }
-  Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: TestUtterance })
   Object.defineProperty(window, 'speechSynthesis', {
-    value: {
-      getVoices: () => [],
-      cancel: () => canceled++,
-      speak: (utterance: TestUtterance) => {
-        spoken.push(utterance.text)
-        utterance.onstart?.()
-      }
+    get: () => {
+      throw new Error('Alarm must not use system speech')
     }
   })
+  Object.defineProperty(window, 'SpeechSynthesisUtterance', {
+    get: () => {
+      throw new Error('Alarm must not construct a system utterance')
+    }
+  })
+  window.fetch = async (url, init) => {
+    check(String(url).endsWith(':17880/api/speech'), 'alarms must use the platform TTS endpoint')
+    spoken.push(JSON.parse(String(init?.body)).text)
+    return new Response(new Blob([new Uint8Array(200)], { type: 'audio/wav' }), {
+      headers: { 'Content-Type': 'audio/wav' }
+    })
+  }
+  class TestAudio {
+    src = ''
+    preload = ''
+    ended = false
+    playing = false
+    onplaying?: () => void
+    onended?: () => void
+    onerror?: () => void
+    play(): Promise<void> {
+      this.playing = true
+      this.onplaying?.()
+      return Promise.resolve()
+    }
+    pause(): void {
+      if (this.playing) canceled++
+      this.playing = false
+    }
+    removeAttribute(): void {
+      this.src = ''
+    }
+    load(): void {
+      this.ended = false
+    }
+  }
+  Object.defineProperty(window, 'Audio', { value: TestAudio })
 
   const root = createRoot(document.getElementById('root')!)
   let currentAlarm: DeviceRiskAlarm | null = null

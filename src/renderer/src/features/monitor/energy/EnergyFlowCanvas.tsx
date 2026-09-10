@@ -1038,7 +1038,7 @@ export default function EnergyFlowCanvas({
             aria-label={motionEnabled ? '暂停能源流向动画' : '播放能源流向动画'}
           >
             <span aria-hidden="true">{motionEnabled ? 'Ⅱ' : '▷'}</span>
-            {motionEnabled ? '暂停动效' : '播放动效'}
+            {motionEnabled ? '智能设计' : '播放动效'}
           </button>
         </div>
       </footer>

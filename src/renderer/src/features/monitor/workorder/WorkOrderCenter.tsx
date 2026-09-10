@@ -37,6 +37,8 @@ const ROLE_META: Record<WorkOrderRole, { title: string }> = {
 }
 
 const RESULT_LABELS: Record<string, string> = {
+  adjustedAngle: '实际倾角（度）',
+  fasteningConfirmed: '支架紧固确认',
   monitoringCompleted: '全程监护',
   unresolvedHazards: '未解决安全隐患',
   isolationConfirmed: '组串隔离',
@@ -133,7 +135,8 @@ function TaskCard({
   workOrderStatus: WorkOrderStatus
 }): React.JSX.Element {
   const resultEntries = Object.entries(task.result ?? {}).filter(
-    ([key, value]) => key !== 'role' && value !== undefined && value !== null && value !== ''
+    ([key, value]) =>
+      key !== 'role' && key !== 'kind' && value !== undefined && value !== null && value !== ''
   )
   const currentStep = workOrderStatus === 'pending_review' ? -1 : activeTaskStep(task)
   const milestones =
@@ -701,7 +704,10 @@ export default function WorkOrderCenter({
                 <div className="work-order-detail__heading">
                   <div>
                     <span>{selected.orderNumber}</span>
-                    <h3>{selected.faultType}故障处理</h3>
+                    <h3>
+                      {selected.faultType}
+                      {selected.tiltAdjustment ? '' : '故障处理'}
+                    </h3>
                     <div className="work-order-detail__status">
                       <span className={`priority priority--${selected.priority}`}>
                         {selected.priority === 'urgent' ? '紧急' : '普通'}
@@ -816,11 +822,23 @@ export default function WorkOrderCenter({
                               <dd>{selected.stationName}</dd>
                             </div>
                             <div>
-                              <dt>故障位置</dt>
+                              <dt>{selected.tiltAdjustment ? '调整位置' : '故障位置'}</dt>
                               <dd>
                                 {selected.stringName} · {selected.componentName}
                               </dd>
                             </div>
+                            {selected.tiltAdjustment && (
+                              <>
+                                <div>
+                                  <dt>依据月份</dt>
+                                  <dd>{selected.tiltAdjustment.month} 月</dd>
+                                </div>
+                                <div>
+                                  <dt>项目资料</dt>
+                                  <dd>{selected.tiltAdjustment.fileName}</dd>
+                                </div>
+                              </>
+                            )}
                             <div>
                               <dt>优先级</dt>
                               <dd
@@ -847,7 +865,7 @@ export default function WorkOrderCenter({
                         </section>
                         <div className="work-order-diagnosis">
                           <section>
-                            <span>报警数据</span>
+                            <span>{selected.tiltAdjustment ? '设备运行数据' : '报警数据'}</span>
                             <h4>
                               {formatNumber(selected.alarm.voltage)} V
                               <i />
@@ -872,7 +890,9 @@ export default function WorkOrderCenter({
                           <div>
                             <h4>下达前，请核对工单信息</h4>
                             <p>
-                              确认故障位置、报警数据、人员分工与风险点后，点击右上方「审核并下达工单」。
+                              {selected.tiltAdjustment
+                                ? '确认月份、倾角建议、人员分工与风险点后，点击右上方「审核并下达工单」。'
+                                : '确认故障位置、报警数据、人员分工与风险点后，点击右上方「审核并下达工单」。'}
                             </p>
                           </div>
                           <button
@@ -959,9 +979,9 @@ export default function WorkOrderCenter({
           <div className="work-order-empty">
             <span>▤</span>
             <h3>暂无工单</h3>
-            <p>在 AI 智能体对话中上传故障图片后，系统将生成待审核草稿。</p>
+            <p>在智诊精巡上传故障图片或项目资料后，系统将生成待审核草稿。</p>
             <button type="button" onClick={onOpenAssistant}>
-              前往 AI 智能助手
+              前往智诊精巡
             </button>
           </div>
         )}

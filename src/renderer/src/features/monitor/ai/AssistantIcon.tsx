@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react'
 
 const ICONS = {
+  table: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+      <path d="M3 9h18M3 15h18M9 9v12" />
+    </>
+  ),
   spark: <path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3ZM20 2v4m-2-2h4" />,
   image: (
     <>

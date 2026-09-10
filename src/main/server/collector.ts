@@ -1,5 +1,7 @@
 import { createConnection, type Socket } from 'node:net'
 import type { CollectorMode, TelemetrySnapshot } from '../../shared/contracts'
+import { PLC_POINTS, type PlcPointId } from '../../shared/plc'
+import { decodePlcPoint } from './plc-values'
 
 export interface DataCollector {
   readonly mode: CollectorMode
@@ -28,16 +30,6 @@ const FIRST_REGISTER = 200
 const REGISTER_COUNT = 104
 
 const REGISTER_OFFSETS = {
-  pv1Voltage: 0,
-  pv1Current: 2,
-  pv2Voltage: 4,
-  pv2Current: 6,
-  pv3Voltage: 8,
-  pv3Current: 10,
-  pv4Voltage: 12,
-  pv4Current: 14,
-  batteryVoltage: 50,
-  batteryCurrent: 52,
   year: 100,
   monthAndDay: 101,
   hourAndMinute: 102,
@@ -61,15 +53,6 @@ const SIMULATION_DEVICE_VALUES = [
 ] as const
 
 const SIMULATION_CLOCK_START_MS = Date.UTC(2026, 8, 1, 15, 30, 30)
-
-function decodeReal(registers: number[], offset: number): number {
-  const buffer = Buffer.allocUnsafe(4)
-  buffer.writeUInt16BE(registers[offset], 0)
-  buffer.writeUInt16BE(registers[offset + 1], 2)
-  const value = buffer.readFloatBE(0)
-  if (!Number.isFinite(value)) throw new Error(`寄存器偏移 ${offset} 返回了无效 REAL`)
-  return value
-}
 
 function pad(value: number, width = 2): string {
   return String(value).padStart(width, '0')
@@ -206,6 +189,16 @@ export class PlcTcpCollector implements DataCollector {
       throw new Error(`PLC返回 ${registers.length} 个寄存器，预期 ${REGISTER_COUNT} 个`)
     }
 
+    const data = Buffer.alloc(REGISTER_COUNT * 2)
+    registers.forEach((value, index) => data.writeUInt16BE(value, index * 2))
+    const values = Object.fromEntries(
+      PLC_POINTS.map((point) => {
+        const value = decodePlcPoint(point, data, (point.register - FIRST_REGISTER) * 2)
+        if (!Number.isFinite(value)) throw new Error(`${point.address} 返回了无效 ${point.type}`)
+        return [point.id, value]
+      })
+    ) as Record<PlcPointId, number>
+
     this.sequence += 1
     return {
       sequence: this.sequence,
@@ -216,32 +209,32 @@ export class PlcTcpCollector implements DataCollector {
       devices: [
         {
           ...DEVICE_DEFINITIONS[0],
-          voltage: decodeReal(registers, REGISTER_OFFSETS.pv1Voltage),
-          current: decodeReal(registers, REGISTER_OFFSETS.pv1Current),
+          voltage: values.pv1Voltage,
+          current: values.pv1Current,
           status: 'normal'
         },
         {
           ...DEVICE_DEFINITIONS[1],
-          voltage: decodeReal(registers, REGISTER_OFFSETS.pv2Voltage),
-          current: decodeReal(registers, REGISTER_OFFSETS.pv2Current),
+          voltage: values.pv2Voltage,
+          current: values.pv2Current,
           status: 'normal'
         },
         {
           ...DEVICE_DEFINITIONS[2],
-          voltage: decodeReal(registers, REGISTER_OFFSETS.pv3Voltage),
-          current: decodeReal(registers, REGISTER_OFFSETS.pv3Current),
+          voltage: values.pv3Voltage,
+          current: values.pv3Current,
           status: 'normal'
         },
         {
           ...DEVICE_DEFINITIONS[3],
-          voltage: decodeReal(registers, REGISTER_OFFSETS.pv4Voltage),
-          current: decodeReal(registers, REGISTER_OFFSETS.pv4Current),
+          voltage: values.pv4Voltage,
+          current: values.pv4Current,
           status: 'normal'
         },
         {
           ...DEVICE_DEFINITIONS[4],
-          voltage: decodeReal(registers, REGISTER_OFFSETS.batteryVoltage),
-          current: decodeReal(registers, REGISTER_OFFSETS.batteryCurrent),
+          voltage: values.batteryVoltage,
+          current: values.batteryCurrent,
           status: 'normal'
         }
       ]

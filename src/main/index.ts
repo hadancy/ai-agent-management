@@ -1,9 +1,22 @@
-import { app, shell, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  safeStorage,
+  net,
+  type IpcMainInvokeEvent
+} from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { WINDOW_CONTROL_CHANNELS } from '../shared/window-controls'
 import { startEmbeddedServer, type EmbeddedServer } from './server'
+import { speechResourcePaths, synthesizeSpeech } from './server/offline-speech'
+import { SpeechSettingsStore } from './speech-settings'
+import { SpeechService } from './server/speech-service'
+import { registerSpeechSettingsIpc } from './speech-ipc'
 
 let embeddedServer: EmbeddedServer | undefined
 let shuttingDown = false
@@ -91,9 +104,34 @@ app
 
     registerWindowControlHandlers()
 
+    const speechResources = speechResourcePaths(
+      app.isPackaged ? process.resourcesPath : app.getAppPath(),
+      app.isPackaged
+    )
+    const speechSettings = new SpeechSettingsStore(
+      join(app.getPath('userData'), 'speech-settings.json'),
+      {
+        available: () =>
+          safeStorage.isEncryptionAvailable() &&
+          (process.platform !== 'linux' ||
+            safeStorage.getSelectedStorageBackend() !== 'basic_text'),
+        encrypt: (value) => safeStorage.encryptString(value),
+        decrypt: (value) => safeStorage.decryptString(value)
+      }
+    )
+    await speechSettings.load()
+    const speech = new SpeechService(
+      speechSettings,
+      (text) => synthesizeSpeech(text, speechResources),
+      (url, init) => net.fetch(url, init)
+    )
+    registerSpeechSettingsIpc(speech, is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined)
+
     embeddedServer = await startEmbeddedServer({
       dataDirectory: join(app.getPath('userData'), 'data'),
       rendererDirectory: join(__dirname, '../renderer'),
+      speechResources,
+      speechService: speech,
       developmentRendererUrl: is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
     })
 

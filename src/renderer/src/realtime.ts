@@ -7,8 +7,8 @@ export type ConnectionState = 'connecting' | 'connected' | 'disconnected'
 const TELEMETRY_HISTORY_LIMIT = 48
 const TELEMETRY_HISTORY_INTERVAL_MS = 5000
 
-function getServiceHost(): string {
-  return window.location.hostname || '127.0.0.1'
+export function getServiceOrigin(): string {
+  return `http://${window.location.hostname || '127.0.0.1'}:17880`
 }
 
 export function useRealtime(): {
@@ -20,7 +20,7 @@ export function useRealtime(): {
   workOrderRevision: number
   serviceOrigin: string
 } {
-  const serviceOrigin = useMemo(() => `http://${getServiceHost()}:17880`, [])
+  const serviceOrigin = useMemo(() => getServiceOrigin(), [])
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting')
   const [systemInfo, setSystemInfo] = useState<SystemInfo>()
   const [telemetry, setTelemetry] = useState<TelemetrySnapshot>()
@@ -72,7 +72,7 @@ export function useRealtime(): {
     const connect = (): void => {
       if (!active) return
       setConnectionState('connecting')
-      socket = new WebSocket(`ws://${getServiceHost()}:17880/ws`)
+      socket = new WebSocket(`${serviceOrigin.replace(/^http/, 'ws')}/ws`)
       socket.addEventListener('open', () => active && setConnectionState('connected'))
       socket.addEventListener('message', (message) => {
         if (!active) return

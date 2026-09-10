@@ -1,0 +1,23 @@
+Offline Chinese speech bundled with AI 智能体辅助管理平台
+
+Engine: sherpa-onnx v1.13.7 (Apache-2.0)
+https://github.com/k2-fsa/sherpa-onnx/tree/v1.13.7
+The bundled Windows executable's application manifest is modified to select
+UTF-8 as its process code page. Executable code is otherwise unchanged.
+
+Model: vits-icefall-zh-aishell3, exported for sherpa-onnx
+https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models
+https://huggingface.co/csukuangfj/vits-icefall-zh-aishell3
+Trained using icefall (Apache-2.0) and AISHELL-3 (Apache-2.0).
+AISHELL-3: Beijing Shell Shell Technology Co., Ltd., https://www.openslr.org/93/
+Model weights, lexicon, tokens and text normalization rules are unmodified.
+Single speaker (sid=10), 8000 Hz, CPU inference. No voice cloning is performed.
+
+ONNX Runtime (MIT), https://github.com/microsoft/onnxruntime
+Upstream Windows runtime: 1.27.1; macOS arm64 runtime: 1.28.1.
+Corresponding licenses and third-party notices accompany this file.
+
+Official download URLs and SHA-256 checksums are pinned in scripts/speech-assets.json
+in the application's source distribution. Models are downloaded during development
+or packaging only; runtime speech synthesis uses local files and makes no external
+requests. Only model files and runtime libraries needed by TTS are distributed.

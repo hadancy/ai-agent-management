@@ -4,6 +4,7 @@ import {
   PLC_CLOCK_FIELDS,
   PLC_POINTS,
   validatePlcClock,
+  validatePlcPointValue,
   type PlcClockValues,
   type PlcConfigResponse,
   type PlcConnection,
@@ -14,6 +15,7 @@ import {
   type PlcWriteResult
 } from '../../shared/plc'
 import { ModbusException, PlcClient } from './plc-client'
+import { decodePlcPoint, encodePlcPoint } from './plc-values'
 
 class PlcInputError extends Error {
   readonly statusCode = 400
@@ -51,14 +53,11 @@ function parseWrite(body: unknown): PlcWriteRequest {
   const values: Partial<Record<PlcPointId, number>> = {}
   if (input.values !== undefined) {
     for (const [key, value] of Object.entries(object(input.values))) {
-      if (!PLC_POINTS.some((point) => point.id === key)) throw new PlcInputError(`未知点位：${key}`)
-      if (
-        typeof value !== 'number' ||
-        !Number.isFinite(value) ||
-        !Number.isFinite(Math.fround(value))
-      )
-        throw new PlcInputError(`${key}必须为有效的32位浮点数`)
-      values[key as PlcPointId] = value
+      const point = PLC_POINTS.find((point) => point.id === key)
+      if (!point) throw new PlcInputError(`未知点位：${key}`)
+      const error = validatePlcPointValue(point, value)
+      if (error) throw new PlcInputError(error)
+      values[point.id] = value as number
     }
   }
   let clock: PlcClockValues | undefined
@@ -93,7 +92,7 @@ async function readSnapshot(
   const data = await client.read(200, 104)
   const values = Object.fromEntries(
     PLC_POINTS.map((point) => {
-      const value = data.readFloatBE((point.register - 200) * 2)
+      const value = decodePlcPoint(point, data, (point.register - 200) * 2)
       return [point.id, Number.isFinite(value) ? value : null]
     })
   ) as PlcReadResponse['values']
@@ -115,8 +114,7 @@ async function writePoints(client: PlcClient, input: PlcWriteRequest): Promise<P
   for (const point of PLC_POINTS) {
     const value = input.values?.[point.id]
     if (value === undefined) continue
-    const data = Buffer.alloc(4)
-    data.writeFloatBE(value)
+    const data = encodePlcPoint(point, value)
     operations.push({ id: point.id, address: point.register, data, requested: value })
   }
   if (input.clock) {
@@ -143,13 +141,12 @@ async function writePoints(client: PlcClient, input: PlcWriteRequest): Promise<P
       await client.write(operation.address, operation.data)
       acknowledged = true
       const actual = await client.read(operation.address, operation.data.length / 2)
-      const actualNumber = operation.id === 'clock' ? undefined : actual.readFloatBE(0)
-      result.actual =
-        operation.id === 'clock'
-          ? decodeClock(actual)
-          : Number.isFinite(actualNumber)
-            ? actualNumber
-            : null
+      if (operation.id === 'clock') result.actual = decodeClock(actual)
+      else {
+        const point = PLC_POINTS.find((point) => point.id === operation.id)!
+        const actualNumber = decodePlcPoint(point, actual)
+        result.actual = Number.isFinite(actualNumber) ? actualNumber : null
+      }
       result.status = actual.equals(operation.data) ? 'verified' : 'mismatch'
       result.message =
         result.status === 'verified'

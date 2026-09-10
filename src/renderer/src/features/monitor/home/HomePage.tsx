@@ -31,10 +31,10 @@ const ENTRIES: HomeEntry[] = [
   },
   {
     id: 'ai',
-    title: 'AI 智能助手',
+    title: '智诊精巡',
     english: 'AI ASSISTANT',
     description: '设备故障分析，辅助运维决策',
-    page: 'AI 智能助手',
+    page: '智诊精巡',
     color: '#3decc0',
     path: 'M370 502 H442 L512 442 H584',
     endpoint: [584, 442]
@@ -266,7 +266,7 @@ export default function HomePage({
           <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             {animated ? <path d="M4 3h2v10H4zm6 0h2v10h-2z" /> : <path d="m5 3 8 5-8 5z" />}
           </svg>
-          {animated ? '暂停动效' : '播放动效'}
+          {animated ? '智能设计' : '播放动效'}
         </button>
       </section>
 

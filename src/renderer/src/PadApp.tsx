@@ -8,7 +8,7 @@ import {
   type TaskAction
 } from './features/pad/taskClient'
 import { usePadTasks } from './features/pad/usePadTasks'
-import { useTaskSpeech, type VoiceStatus } from './features/pad/useTaskSpeech'
+import { useTaskSpeech } from './features/pad/useTaskSpeech'
 import { useRealtime } from './realtime'
 
 const ROLE_STORAGE_KEY = 'platform-c.bound-role'
@@ -35,14 +35,6 @@ const roles: Record<
     shortDuty: '热斑检测与处理',
     description: '使用红外热像仪确认热斑，完成清理或更换，并回填复测结果。'
   }
-}
-
-const VOICE_STATUS_TEXT: Record<VoiceStatus, string> = {
-  idle: '新工单将自动播报',
-  speaking: '正在播报工单内容',
-  completed: '最近一次播报已完成',
-  unsupported: '当前设备不支持语音播报',
-  error: '语音播报失败，可在任务中点击重播'
 }
 
 type TaskTab = PadTask['status']
@@ -177,7 +169,7 @@ export default function PadApp(): React.JSX.Element {
     connectionState,
     workOrderRevision
   })
-  const speech = useTaskSpeech(role, tasks)
+  const speech = useTaskSpeech(role, tasks, serviceOrigin)
 
   const counts = useMemo(
     () => ({
@@ -326,22 +318,40 @@ export default function PadApp(): React.JSX.Element {
             🔊
           </div>
           <div>
-            <strong>{speech.enabled ? '工单语音播报已开启' : '请先开启工单语音播报'}</strong>
-            <p>
-              {speech.enabled
-                ? VOICE_STATUS_TEXT[speech.status]
-                : '受浏览器规则限制，需要点击一次开启。新任务仅自动播报一次，可手动重播。'}
+            <strong>
+              {speech.activated
+                ? speech.enabled
+                  ? '工单自动播报已开启'
+                  : '工单手动播报'
+                : '请点击开启或恢复工单播报'}
+            </strong>
+            <p role="status" aria-live="polite">
+              {speech.activated
+                ? speech.message
+                : '每次打开页面请先点击开启。语音由平台统一生成，完整播完后才记录为已播报。'}
             </p>
           </div>
-          {speech.enabled ? (
-            <button type="button" className="pad-voice-secondary" onClick={speech.disable}>
-              关闭自动播报
-            </button>
-          ) : (
-            <button type="button" className="pad-voice-enable" onClick={speech.enable}>
-              开启语音播报
-            </button>
-          )}
+          <div className="pad-voice-actions">
+            {(!speech.enabled ||
+              !speech.activated ||
+              speech.status === 'blocked' ||
+              speech.status === 'error') && (
+              <button type="button" className="pad-voice-enable" onClick={speech.enable}>
+                {speech.status === 'blocked'
+                  ? '点击播放'
+                  : speech.status === 'error'
+                    ? '重试播报'
+                    : speech.enabled
+                      ? '点击恢复播报'
+                      : '开启语音播报'}
+              </button>
+            )}
+            {speech.activated && (
+              <button type="button" className="pad-voice-secondary" onClick={speech.disable}>
+                关闭播报
+              </button>
+            )}
+          </div>
         </section>
 
         {connectionState === 'disconnected' && (

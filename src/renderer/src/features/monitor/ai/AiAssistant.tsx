@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import AssistantIcon from './AssistantIcon'
+import { usePlatformSpeech } from '../../../speech/usePlatformSpeech'
+import type { VoiceStatus } from '../../../speech/PlatformSpeechPlayer'
 import ClearChatDialog from './ClearChatDialog'
 import '../styles/ai-assistant.css'
 
@@ -16,7 +18,6 @@ type ChatMessage = {
   draftError?: string
 }
 
-type VoiceStatus = 'idle' | 'speaking' | 'completed' | 'unsupported' | 'error'
 type WorkOrderDraftFeedback = { orderNumber: string; deduplicated: boolean }
 
 const CHAT_STORAGE_KEY = 'ai-assistant-chat-messages-v2'
@@ -31,7 +32,8 @@ const VOICE_STATUS_TEXT: Record<VoiceStatus, string> = {
   idle: '语音播报',
   speaking: '停止播报',
   completed: '重新播报',
-  unsupported: '系统不支持语音',
+  loading: '取消生成',
+  blocked: '点击播放',
   error: '重试播报'
 }
 const QUICK_QUESTIONS = [
@@ -55,7 +57,7 @@ const INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: 1,
     role: 'assistant',
-    content: '你好，我是你的运维助手。可以上传设备故障图片，查看分析结果并协同处理工单。'
+    content: '你好，我是高精度智能运维系统。可以上传设备故障图片，查看分析结果并协同处理工单。'
   }
 ]
 
@@ -95,14 +97,22 @@ function formatAssistantContent(content: string): string {
 }
 
 export default function AiAssistant({
+  active = true,
   onWorkOrderCreated,
   onViewWorkOrder
 }: {
+  active?: boolean
   onWorkOrderCreated: () => Promise<WorkOrderDraftFeedback>
   onViewWorkOrder: () => void
 }): React.JSX.Element {
   const [input, setInput] = useState('')
-  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle')
+  const {
+    status: voiceStatus,
+    message: voiceMessage,
+    speak,
+    stop: stopSpeech,
+    resume
+  } = usePlatformSpeech()
   const [voiceMessageId, setVoiceMessageId] = useState<number | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>(loadStoredMessages)
   const [uploadError, setUploadError] = useState('')
@@ -116,7 +126,11 @@ export default function AiAssistant({
   const pendingTimersRef = useRef<number[]>([])
   const conversationGenerationRef = useRef(0)
   const draftRequestsRef = useRef(new Set<number>())
-  const voiceGenerationRef = useRef(0)
+  const activeRef = useRef(active)
+  useEffect(() => {
+    activeRef.current = active
+    if (!active) stopSpeech()
+  }, [active, stopSpeech])
   const isEmpty =
     messages.length === 1 && !messages[0].diagnosis && messages[0].role === 'assistant'
   const isBusy =
@@ -128,8 +142,6 @@ export default function AiAssistant({
     () => () => {
       pendingTimersRef.current.forEach((timer) => window.clearTimeout(timer))
       conversationGenerationRef.current += 1
-      voiceGenerationRef.current += 1
-      window.speechSynthesis?.cancel()
     },
     []
   )
@@ -154,38 +166,13 @@ export default function AiAssistant({
     }
   }, [messages])
 
-  const speakDiagnosis = useCallback((messageId: number): void => {
-    const voiceGeneration = ++voiceGenerationRef.current
-    setVoiceMessageId(messageId)
-    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
-      setVoiceStatus('unsupported')
-      return
-    }
-    window.speechSynthesis.cancel()
-    const utterance = new window.SpeechSynthesisUtterance(DIAGNOSIS_VOICE_TEXT)
-    const chineseVoice = window.speechSynthesis
-      .getVoices()
-      .find((voice) => voice.lang.toLowerCase().startsWith('zh'))
-    if (chineseVoice) utterance.voice = chineseVoice
-    utterance.lang = 'zh-CN'
-    utterance.rate = 0.92
-    utterance.onstart = () => {
-      if (voiceGeneration === voiceGenerationRef.current) setVoiceStatus('speaking')
-    }
-    utterance.onend = () => {
-      if (voiceGeneration === voiceGenerationRef.current) setVoiceStatus('completed')
-    }
-    utterance.onerror = (event) => {
-      if (
-        voiceGeneration === voiceGenerationRef.current &&
-        event.error !== 'canceled' &&
-        event.error !== 'interrupted'
-      )
-        setVoiceStatus('error')
-    }
-    setVoiceStatus('speaking')
-    window.speechSynthesis.speak(utterance)
-  }, [])
+  const speakDiagnosis = useCallback(
+    (messageId: number, userInitiated = false): void => {
+      setVoiceMessageId(messageId)
+      speak(DIAGNOSIS_VOICE_TEXT, userInitiated)
+    },
+    [speak]
+  )
 
   const createDraftForMessage = useCallback(
     async (
@@ -217,7 +204,7 @@ export default function AiAssistant({
               : message
           )
         )
-        speakDiagnosis(messageId)
+        if (activeRef.current) speakDiagnosis(messageId)
       } catch (requestError) {
         if (conversationGeneration !== conversationGenerationRef.current) return
         setMessages((current) =>
@@ -324,10 +311,8 @@ export default function AiAssistant({
     conversationGenerationRef.current += 1
     pendingTimersRef.current.forEach((timer) => window.clearTimeout(timer))
     pendingTimersRef.current = []
-    voiceGenerationRef.current += 1
-    window.speechSynthesis?.cancel()
+    stopSpeech()
     setMessages(INITIAL_MESSAGES)
-    setVoiceStatus('idle')
     setVoiceMessageId(null)
     setInput('')
     setUploadError('')
@@ -343,7 +328,7 @@ export default function AiAssistant({
   }
 
   return (
-    <section className="ai-panel" aria-label="运维助手对话">
+    <section className="ai-panel" aria-label="高精度智能运维系统对话">
       <header className="ai-heading">
         <div className="ai-heading__identity">
           <span className="ai-avatar">
@@ -351,7 +336,7 @@ export default function AiAssistant({
           </span>
           <div>
             <h3>
-              运维助手 <span>AI</span>
+              高精度智能运维系统 <span>AI</span>
             </h3>
             <p>设备诊断 · 工单协同</p>
           </div>
@@ -428,7 +413,7 @@ export default function AiAssistant({
                 </span>
                 <div className="chat-message">
                   <div className="chat-message__label">
-                    {message.role === 'assistant' ? '运维助手' : '我'}
+                    {message.role === 'assistant' ? '高精度智能运维系统' : '我'}
                   </div>
                   <div
                     className={`chat-bubble${message.diagnosis ? ' chat-bubble--diagnosis' : ''}`}
@@ -493,11 +478,18 @@ export default function AiAssistant({
                             className="diagnosis-voice"
                             disabled={message.draftStatus !== 'created'}
                             onClick={() => {
-                              if (voiceMessageId === message.id && voiceStatus === 'speaking') {
-                                voiceGenerationRef.current += 1
-                                window.speechSynthesis?.cancel()
-                                setVoiceStatus('idle')
-                              } else speakDiagnosis(message.id)
+                              if (
+                                voiceMessageId === message.id &&
+                                (voiceStatus === 'speaking' || voiceStatus === 'loading')
+                              ) {
+                                stopSpeech()
+                              } else if (
+                                voiceMessageId === message.id &&
+                                voiceStatus === 'blocked' &&
+                                resume()
+                              ) {
+                                // The tap resumes the prepared audio without another cloud request.
+                              } else speakDiagnosis(message.id, true)
                             }}
                           >
                             <AssistantIcon name="voice" />
@@ -507,6 +499,12 @@ export default function AiAssistant({
                               ]
                             }
                           </button>
+                          {voiceMessageId === message.id &&
+                            (voiceStatus === 'blocked' || voiceStatus === 'error') && (
+                              <span className="diagnosis-voice-status" role="status">
+                                {voiceMessage}
+                              </span>
+                            )}
                           {message.draftStatus === 'error' ? (
                             <button
                               type="button"
@@ -541,7 +539,7 @@ export default function AiAssistant({
             ))}
             {replyPending && (
               <div className="chat-reply-pending" role="status">
-                运维助手正在回复…
+                高精度智能运维系统正在回复…
               </div>
             )}
           </div>

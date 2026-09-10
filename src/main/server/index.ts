@@ -9,11 +9,16 @@ import { getWifiLanAddress } from '../network'
 import { PlcTcpCollector, SimulatedCollector, type DataCollector } from './collector'
 import { createAppDatabase } from './database'
 import { registerPlcRoutes } from './plc-routes'
+import { registerSpeechRoutes } from './speech'
+import { synthesizeSpeech, type SpeechResources } from './offline-speech'
+import type { SpeechService } from './speech-service'
 import { registerWorkOrderRoutes, WorkOrderService } from './work-orders'
 
 export interface EmbeddedServerOptions {
   dataDirectory: string
   rendererDirectory: string
+  speechResources?: SpeechResources
+  speechService?: SpeechService
   developmentRendererUrl?: string
   port?: number
 }
@@ -109,6 +114,14 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
     return latestSnapshot
   })
   registerWorkOrderRoutes(app, workOrders)
+  registerSpeechRoutes(
+    app,
+    (text) =>
+      options.speechService
+        ? options.speechService.synthesize(text)
+        : synthesizeSpeech(text, options.speechResources),
+    () => options.speechService?.cacheNamespace() ?? ''
+  )
   registerPlcRoutes(app, {
     config: {
       pageUrl: `http://${host}:${port}/plc`,

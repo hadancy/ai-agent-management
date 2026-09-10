@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import type { PadTask, TaskAction } from './taskClient'
+import { getTiltAdvice } from '../../../../shared/tilt-adjustment'
 
 interface PadTaskCardProps {
   task: PadTask
@@ -64,7 +65,13 @@ function StartTaskAction({
 }): React.JSX.Element {
   const [acknowledged, setAcknowledged] = useState(false)
   const label =
-    task.role === 'A' ? '开始安全监护' : task.role === 'B' ? '开始隔离与验电' : '开始检测与处理'
+    task.role === 'A'
+      ? '开始安全监护'
+      : task.role === 'B'
+        ? '开始隔离与验电'
+        : task.tiltAdjustment
+          ? '开始倾角调整'
+          : '开始检测与处理'
 
   if (!task.canStart) return <BlockingNotice task={task} action="start" />
 
@@ -230,7 +237,9 @@ function IsolationCheckpointForm({
           checked={isolationConfirmed}
           onChange={(event) => setIsolationConfirmed(event.target.checked)}
         />
-        <span>已确认故障光伏组串完成隔离</span>
+        <span>
+          {task.tiltAdjustment ? '已确认待调整光伏组串完成隔离' : '已确认故障光伏组串完成隔离'}
+        </span>
       </label>
       <label className="task-check">
         <input
@@ -476,6 +485,104 @@ function TreatmentForm({
   )
 }
 
+function TiltAdjustmentForm({
+  task,
+  busy,
+  onAction
+}: {
+  task: PadTask
+  busy: boolean
+  onAction: PadTaskCardProps['onAction']
+}): React.JSX.Element {
+  const [angle, setAngle] = useState('')
+  const [fastening, setFastening] = useState(false)
+  const [retest, setRetest] = useState(false)
+  const [notes, setNotes] = useState('')
+  const [error, setError] = useState('')
+  const advice = getTiltAdvice(task.tiltAdjustment!.month)
+  if (!task.canSubmit) return <BlockingNotice task={task} action="submit" />
+  const submit = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault()
+    const adjustedAngle = Number(angle)
+    if (
+      !angle.trim() ||
+      !Number.isFinite(adjustedAngle) ||
+      adjustedAngle < advice.minAngle ||
+      adjustedAngle > advice.maxAngle
+    ) {
+      setError(`请填写${advice.minAngle}至${advice.maxAngle}度范围内的实际倾角。`)
+      return
+    }
+    if (!fastening || !retest) {
+      setError('请确认支架紧固，并完成调整后复测。')
+      return
+    }
+    setError('')
+    void onAction(task, 'submit', {
+      adjustedAngle,
+      fasteningConfirmed: fastening,
+      retestPassed: retest,
+      notes: notes.trim() || undefined
+    })
+  }
+  return (
+    <form className="task-result-form" onSubmit={submit}>
+      <div className="task-form-heading">
+        <strong>提交{advice.season}倾角调整结果</strong>
+        <span>
+          目标倾角：{advice.minAngle}至{advice.maxAngle}度
+        </span>
+      </div>
+      <label className="task-field">
+        <span>调整后实际倾角（度）</span>
+        <input
+          type="number"
+          inputMode="decimal"
+          step="0.1"
+          min={advice.minAngle}
+          max={advice.maxAngle}
+          value={angle}
+          onChange={(event) => setAngle(event.target.value)}
+          required
+        />
+      </label>
+      <label className="task-check">
+        <input
+          type="checkbox"
+          checked={fastening}
+          onChange={(event) => setFastening(event.target.checked)}
+        />
+        <span>已确认组件及支架紧固，无松动</span>
+      </label>
+      <label className="task-check">
+        <input
+          type="checkbox"
+          checked={retest}
+          onChange={(event) => setRetest(event.target.checked)}
+        />
+        <span>已完成倾角调整后复测，结果合格</span>
+      </label>
+      <label className="task-field">
+        <span>调整说明（选填）</span>
+        <textarea
+          rows={3}
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+          placeholder="记录实际倾角、支架检查及复测情况"
+        />
+      </label>
+      {error && (
+        <p className="task-form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <button type="submit" className="task-primary-button" disabled={busy}>
+        {busy ? '正在提交…' : '提交倾角调整结果'}
+      </button>
+    </form>
+  )
+}
+
 function CompletedResult({ task }: { task: PadTask }): React.JSX.Element {
   return (
     <div className="task-completed-result">
@@ -517,7 +624,11 @@ export default function PadTaskCard({
         <div className="task-card-badges">
           {task.priority && (
             <span className={`task-priority task-priority--${task.priority.toLowerCase()}`}>
-              {task.priority === 'urgent' ? '紧急' : task.priority}
+              {task.priority === 'urgent'
+                ? '紧急'
+                : task.priority === 'normal'
+                  ? '普通'
+                  : task.priority}
             </span>
           )}
           <span className={`task-status task-status--${task.status}`}>
@@ -611,9 +722,13 @@ export default function PadTaskCard({
       {task.status === 'in_progress' && task.role === 'B' && task.checkpointCompleted && (
         <RestorationForm task={task} busy={busy} onAction={onAction} />
       )}
-      {task.status === 'in_progress' && task.role === 'C' && (
-        <TreatmentForm task={task} busy={busy} onAction={onAction} />
-      )}
+      {task.status === 'in_progress' &&
+        task.role === 'C' &&
+        (task.tiltAdjustment ? (
+          <TiltAdjustmentForm task={task} busy={busy} onAction={onAction} />
+        ) : (
+          <TreatmentForm task={task} busy={busy} onAction={onAction} />
+        ))}
       {task.status === 'completed' && <CompletedResult task={task} />}
     </article>
   )

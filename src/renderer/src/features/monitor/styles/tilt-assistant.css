@@ -1,0 +1,87 @@
+.tilt-avatar {
+  color: #a2e5cc;
+  border-color: #417c72;
+  background: linear-gradient(145deg, #24584f, #183d3d);
+}
+.tilt-exchange {
+  display: grid;
+  gap: 20px;
+}
+.tilt-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tilt-file > svg {
+  width: 28px;
+  height: 28px;
+  color: #9edbc2;
+}
+.tilt-file strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.tilt-file span {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  color: #97abc6;
+}
+.tilt-reply {
+  white-space: pre-line;
+  line-height: 1.9;
+}
+.tilt-execute {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 12px;
+  color: #dcf3e9;
+  font-size: 16px;
+}
+.tilt-execute span {
+  padding: 4px 10px;
+  border: 1px solid #366d5a;
+  border-radius: 6px;
+  color: #a8e6c9;
+  background: #183d32;
+  font-size: 12px;
+}
+.tilt-upload-composer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 20px;
+  border: 1px solid #38526a;
+  border-radius: 10px;
+  background: #15273b;
+}
+.tilt-upload-composer strong {
+  color: #e0eaf5;
+  font-size: 14px;
+}
+.tilt-upload-composer p {
+  margin: 6px 0;
+  color: #a3b4cc;
+  font-size: 12px;
+}
+.tilt-upload-composer span {
+  color: #7f96b3;
+  font-size: 11px;
+}
+.tilt-upload-composer button {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 17px;
+  border-radius: 7px;
+  color: #f1fff8;
+  background: #346e5a;
+  font-size: 13px;
+}
+.tilt-upload-composer button:hover:not(:disabled) {
+  background: #42846b;
+}

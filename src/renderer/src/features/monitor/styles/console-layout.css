@@ -230,3 +230,25 @@
   font-weight: 500;
   letter-spacing: 0.04em;
 }
+
+.console-speech-notice {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(650px, calc(100vw - 40px));
+  padding: 14px 18px;
+  border: 1px solid #2376a0;
+  border-radius: 8px;
+  color: #dcebf3;
+  background: #092137;
+}
+.console-speech-notice button {
+  flex-shrink: 0;
+  color: #72d6ff;
+  background: transparent;
+  cursor: pointer;
+}

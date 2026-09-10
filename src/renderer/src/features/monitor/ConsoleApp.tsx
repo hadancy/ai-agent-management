@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtime } from '../../realtime'
+import { usePlatformSpeech } from '../../speech/usePlatformSpeech'
 import AiAssistantPage from './ai/AiAssistantPage'
 import RiskAlarmDialog from './alerts/RiskAlarmDialog'
 import { detectDeviceRisk } from './alerts/riskDetection'
@@ -66,6 +67,14 @@ export default function ConsoleApp(): React.JSX.Element {
   const [workOrderCount, setWorkOrderCount] = useState(0)
   const [workOrdersLoaded, setWorkOrdersLoaded] = useState(false)
   const [localWorkOrderRevision, setLocalWorkOrderRevision] = useState(0)
+  const [completionMessage, setCompletionMessage] = useState('')
+  const {
+    status: completionVoiceStatus,
+    message: completionVoiceMessage,
+    speak: speakCompletion,
+    stop: stopCompletion,
+    resume: resumeCompletion
+  } = usePlatformSpeech(serviceOrigin)
   const knownWorkOrderStatusesRef = useRef<Map<string, string> | null>(null)
   const forecastModel = useMemo(
     () => createForecastModel(telemetryHistory, photovoltaicSettings),
@@ -126,6 +135,10 @@ export default function ConsoleApp(): React.JSX.Element {
     }
   }, [photovoltaicSettings, serviceOrigin, telemetry])
   const viewWorkOrder = useCallback((): void => setActiveNav('工单中心'), [])
+  const refreshWorkOrders = useCallback(
+    (): void => setLocalWorkOrderRevision((value) => value + 1),
+    []
+  )
   const updateWorkOrderCount = useCallback((count: number): void => setWorkOrderCount(count), [])
   const updatePhotovoltaicSettings = useCallback((settings: PhotovoltaicSettings): void => {
     savePhotovoltaicSettings(settings)
@@ -169,26 +182,19 @@ export default function ConsoleApp(): React.JSX.Element {
           response.items.map((order) => [order.id, order.status])
         )
 
-        if (newlyClosed.length > 0 && window.speechSynthesis && window.SpeechSynthesisUtterance) {
+        if (newlyClosed.length > 0) {
           const message = newlyClosed
             .map((order) => `工单${order.orderNumber}处理完成，PLC数据已恢复正常，工单已自动关闭。`)
             .join('')
-          const utterance = new window.SpeechSynthesisUtterance(message)
-          const chineseVoice = window.speechSynthesis
-            .getVoices()
-            .find((voice) => voice.lang.toLowerCase().startsWith('zh'))
-          if (chineseVoice) utterance.voice = chineseVoice
-          utterance.lang = 'zh-CN'
-          utterance.rate = 0.92
-          window.speechSynthesis.cancel()
-          window.speechSynthesis.speak(utterance)
+          setCompletionMessage(message)
+          speakCompletion(message)
         }
       })
       .catch(() => {
         // The work-order center exposes a visible retry action when the service is unavailable.
       })
     return () => controller.abort()
-  }, [localWorkOrderRevision, serviceOrigin, workOrderRevision])
+  }, [localWorkOrderRevision, serviceOrigin, workOrderRevision, speakCompletion])
 
   useEffect(() => {
     const updateClock = (): void => {
@@ -249,13 +255,18 @@ export default function ConsoleApp(): React.JSX.Element {
               padUrl={systemInfo?.padUrl}
               refreshToken={workOrderRevision + localWorkOrderRevision}
               onBack={() => setActiveNav('综合监控')}
-              onOpenAssistant={() => navigate('AI 智能助手')}
+              onOpenAssistant={() => navigate('智诊精巡')}
               onCountChange={updateWorkOrderCount}
             />
           </main>
-        ) : activeNav === 'AI 智能助手' ? (
+        ) : activeNav === '智诊精巡' ? (
           <main className="console-main console-main--assistant">
             <AiAssistantPage
+              normalRange={photovoltaicSettings}
+              clock={clock}
+              serviceOrigin={serviceOrigin}
+              refreshToken={workOrderRevision + localWorkOrderRevision}
+              onWorkOrderChanged={refreshWorkOrders}
               workOrderCount={workOrdersLoaded ? workOrderCount : null}
               plcOnline={connectionState === 'connected' && telemetry?.plcConnected === true}
               onWorkOrderCreated={createWorkOrder}
@@ -298,6 +309,24 @@ export default function ConsoleApp(): React.JSX.Element {
           </main>
         )}
       </div>
+      {completionMessage &&
+        (completionVoiceStatus === 'blocked' || completionVoiceStatus === 'error') && (
+          <aside className="console-speech-notice" aria-label="工单关闭语音提醒" role="status">
+            <span>{completionVoiceMessage}</span>
+            <button
+              type="button"
+              onClick={() => {
+                if (completionVoiceStatus === 'blocked' && resumeCompletion()) return
+                speakCompletion(completionMessage, true)
+              }}
+            >
+              {completionVoiceStatus === 'blocked' ? '点击播放' : '重试播报'}
+            </button>
+            <button type="button" onClick={stopCompletion}>
+              关闭
+            </button>
+          </aside>
+        )}
       <RiskAlarmDialog open={alarmOpen} alarm={activeAlarm} onClose={closeAlarm} />
     </div>
   )

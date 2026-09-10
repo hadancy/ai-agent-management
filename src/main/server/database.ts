@@ -14,6 +14,7 @@ import type {
 } from '../../shared/contracts'
 
 interface WorkOrderRow {
+  tilt_adjustment_json: string | null
   id: string
   order_number: string
   dedupe_key: string
@@ -129,6 +130,7 @@ function mapTaskRow(row: WorkOrderTaskRow): WorkOrderTask {
 
 function mapOrderRow(row: WorkOrderRow, tasks: WorkOrderTask[]): WorkOrder {
   return {
+    tiltAdjustment: row.tilt_adjustment_json ? JSON.parse(row.tilt_adjustment_json) : undefined,
     id: row.id,
     orderNumber: row.order_number,
     stationName: row.station_name,
@@ -277,6 +279,11 @@ export function createAppDatabase(dataDirectory: string): AppDatabase {
       ON work_order_events(work_order_id, created_at, id);
   `)
 
+  const orderColumns = database.pragma('table_info(work_orders)') as Array<{ name: string }>
+  if (!orderColumns.some((column) => column.name === 'tilt_adjustment_json')) {
+    database.exec('ALTER TABLE work_orders ADD COLUMN tilt_adjustment_json TEXT')
+  }
+
   const saveTelemetryStatement = database.prepare(`
     INSERT INTO telemetry_snapshots(sequence, captured_at, collector_mode, payload_json)
     VALUES (@sequence, @capturedAt, @collectorMode, @payloadJson)
@@ -288,14 +295,14 @@ export function createAppDatabase(dataDirectory: string): AppDatabase {
   const insertWorkOrderStatement = database.prepare(`
     INSERT INTO work_orders(
       id, order_number, dedupe_key, station_name, device_id, string_name, component_name,
-      fault_type, priority, handling_suggestion, alarm_voltage, alarm_current,
+      fault_type, priority, handling_suggestion, tilt_adjustment_json, alarm_voltage, alarm_current,
       normal_voltage, normal_current, tolerance_percent, voltage_min, voltage_max,
       current_min, current_max, status, reviewed_by, created_at, updated_at, reviewed_at,
       dispatched_at, verifying_at, closed_at, plc_required_samples, plc_consecutive_samples,
       plc_last_checked_at, plc_last_voltage, plc_last_current, plc_last_sample_normal
     ) VALUES (
       @id, @orderNumber, @dedupeKey, @stationName, @deviceId, @stringName, @componentName,
-      @faultType, @priority, @handlingSuggestion, @alarmVoltage, @alarmCurrent,
+      @faultType, @priority, @handlingSuggestion, @tiltAdjustmentJson, @alarmVoltage, @alarmCurrent,
       @normalVoltage, @normalCurrent, @tolerancePercent, @voltageMin, @voltageMax,
       @currentMin, @currentMax, @status, @reviewedBy, @createdAt, @updatedAt, @reviewedAt,
       @dispatchedAt, @verifyingAt, @closedAt, @plcRequiredSamples, @plcConsecutiveSamples,
@@ -306,7 +313,7 @@ export function createAppDatabase(dataDirectory: string): AppDatabase {
     UPDATE work_orders SET
       station_name = @stationName, device_id = @deviceId, string_name = @stringName,
       component_name = @componentName, fault_type = @faultType, priority = @priority,
-      handling_suggestion = @handlingSuggestion, alarm_voltage = @alarmVoltage,
+      handling_suggestion = @handlingSuggestion, tilt_adjustment_json = @tiltAdjustmentJson, alarm_voltage = @alarmVoltage,
       alarm_current = @alarmCurrent, normal_voltage = @normalVoltage,
       normal_current = @normalCurrent, tolerance_percent = @tolerancePercent,
       voltage_min = @voltageMin, voltage_max = @voltageMax, current_min = @currentMin,
@@ -358,6 +365,7 @@ export function createAppDatabase(dataDirectory: string): AppDatabase {
   })
 
   const orderParameters = (workOrder: WorkOrder, dedupeKey?: string): Record<string, unknown> => ({
+    tiltAdjustmentJson: workOrder.tiltAdjustment ? JSON.stringify(workOrder.tiltAdjustment) : null,
     id: workOrder.id,
     orderNumber: workOrder.orderNumber,
     dedupeKey,

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PadRole, PadTask } from './taskClient'
-
-export type VoiceStatus = 'idle' | 'speaking' | 'completed' | 'unsupported' | 'error'
+import { PlatformSpeechPlayer, type VoicePlaybackState } from '../../speech/PlatformSpeechPlayer'
 
 const VOICE_ENABLED_KEY = 'platform-c.voice-enabled'
 const SPOKEN_TASK_IDS_PREFIX = 'platform-c.spoken-task-ids.'
@@ -63,100 +62,123 @@ function taskSpeechText(task: PadTask): string {
 
 export function useTaskSpeech(
   role: PadRole | null,
-  tasks: PadTask[]
+  tasks: PadTask[],
+  serviceOrigin: string
 ): {
   enabled: boolean
-  status: VoiceStatus
+  activated: boolean
+  status: VoicePlaybackState['status']
+  message: string
   enable: () => void
   disable: () => void
   replay: (task: PadTask) => void
 } {
   const [enabled, setEnabled] = useState(readVoiceEnabled)
-  const [status, setStatus] = useState<VoiceStatus>('idle')
+  // Stored preference does not grant playback permission to a newly opened page.
+  const [activatedSession, setActivatedSession] = useState<string | null>(null)
+  const sessionKey = `${serviceOrigin}|${role}`
+  const activated = activatedSession === sessionKey
+  const [playback, setPlayback] = useState<VoicePlaybackState>({
+    status: 'idle',
+    message: '新工单将自动播报'
+  })
+  const [revision, setRevision] = useState(0)
+  const playerRef = useRef<PlatformSpeechPlayer | null>(null)
   const spokenIdsRef = useRef<Set<string>>(readSpokenTaskIds(role))
-
-  const speakText = useCallback((text: string): boolean => {
-    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
-      setStatus('unsupported')
-      return false
-    }
-
-    window.speechSynthesis.cancel()
-    const utterance = new window.SpeechSynthesisUtterance(text)
-    const chineseVoice = window.speechSynthesis
-      .getVoices()
-      .find((voice) => voice.lang.toLowerCase().startsWith('zh'))
-    if (chineseVoice) utterance.voice = chineseVoice
-    utterance.lang = 'zh-CN'
-    utterance.rate = 0.92
-    utterance.pitch = 1
-    utterance.volume = 1
-    utterance.onstart = () => setStatus('speaking')
-    utterance.onend = () => setStatus('completed')
-    utterance.onerror = (event) => {
-      if (event.error !== 'canceled') setStatus('error')
-    }
-    window.speechSynthesis.speak(utterance)
-    return true
-  }, [])
+  const activeRef = useRef<{ task?: PadTask; role: PadRole | null } | null>(null)
 
   useEffect(() => {
+    const player = new PlatformSpeechPlayer(serviceOrigin, setPlayback)
+    playerRef.current = player
+    return () => {
+      activeRef.current = null
+      player.dispose()
+      playerRef.current = null
+    }
+  }, [serviceOrigin])
+
+  useEffect(() => {
+    activeRef.current = null
+    playerRef.current?.stop()
     spokenIdsRef.current = readSpokenTaskIds(role)
-  }, [role])
+  }, [role, serviceOrigin])
 
-  useEffect(() => {
-    if (!enabled || !role) return
-    const unseenTasks = tasks.filter(
-      (task) => task.status !== 'completed' && !spokenIdsRef.current.has(task.id)
-    )
-    if (unseenTasks.length === 0) return
-
-    const timer = window.setTimeout(() => {
-      const speech = unseenTasks.map(taskSpeechText).join('。下一项任务：')
-      if (!speakText(speech)) return
-      unseenTasks.forEach((task) => spokenIdsRef.current.add(task.id))
-      saveSpokenTaskIds(role, spokenIdsRef.current)
-    }, 350)
-    return () => window.clearTimeout(timer)
-  }, [enabled, role, speakText, tasks])
-
-  useEffect(
-    () => () => {
-      window.speechSynthesis?.cancel()
+  const begin = useCallback(
+    (task: PadTask | undefined, userInitiated = false): void => {
+      const player = playerRef.current
+      if (!player) return
+      const active = { task, role }
+      activeRef.current = active
+      player.play(
+        task ? taskSpeechText(task) : '工单语音播报已开启。',
+        () => {
+          if (activeRef.current !== active) return
+          if (task && role) {
+            spokenIdsRef.current.add(task.id)
+            saveSpokenTaskIds(role, spokenIdsRef.current)
+          }
+          activeRef.current = null
+          setRevision((value) => value + 1)
+        },
+        userInitiated
+      )
     },
-    []
+    [role]
   )
 
-  const enable = useCallback((): void => {
+  const getNextTask = useCallback(
+    () =>
+      tasks.find(
+        (task) =>
+          task.role === role && task.status !== 'completed' && !spokenIdsRef.current.has(task.id)
+      ),
+    [tasks, role]
+  )
+
+  useEffect(() => {
+    if (!enabled || !activated || !role || activeRef.current) return
+    const nextTask = getNextTask()
+    if (nextTask) begin(nextTask)
+  }, [enabled, activated, role, getNextTask, begin, revision])
+
+  const enable = (): void => {
     try {
       window.localStorage.setItem(VOICE_ENABLED_KEY, 'true')
     } catch {
-      // Keep the current session enabled even without local storage.
+      /* Optional persistence. */
     }
     setEnabled(true)
-    const hasUnseenTask = tasks.some(
-      (task) => task.status !== 'completed' && !spokenIdsRef.current.has(task.id)
-    )
-    if (!hasUnseenTask) speakText('工单语音播报已开启。')
-  }, [speakText, tasks])
+    setActivatedSession(sessionKey)
+    if (playback.status === 'blocked' && playerRef.current?.resume()) return
+    // Start directly in the tap handler, including when there are pending tasks.
+    begin(activeRef.current?.task ?? getNextTask(), true)
+  }
 
-  const disable = useCallback((): void => {
+  const disable = (): void => {
     try {
       window.localStorage.setItem(VOICE_ENABLED_KEY, 'false')
     } catch {
-      // Keep the current session disabled even without local storage.
+      /* Optional persistence. */
     }
-    window.speechSynthesis?.cancel()
+    activeRef.current = null
+    playerRef.current?.stop()
     setEnabled(false)
-    setStatus('idle')
-  }, [])
+    setActivatedSession(null)
+    setPlayback({ status: 'idle', message: '自动播报已关闭' })
+  }
 
-  const replay = useCallback(
-    (task: PadTask): void => {
-      speakText(taskSpeechText(task))
-    },
-    [speakText]
-  )
+  const replay = (task: PadTask): void => {
+    setActivatedSession(sessionKey)
+    begin(task, true)
+  }
 
-  return { enabled, status, enable, disable, replay }
+  return {
+    enabled,
+    activated,
+    status: activated ? playback.status : 'idle',
+    message: playback.message,
+    enable,
+    disable,
+    replay
+  }
 }

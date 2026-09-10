@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type { DeviceRiskAlarm } from '../types'
+import { usePlatformSpeech } from '../../../speech/usePlatformSpeech'
+import type { VoiceStatus } from '../../../speech/PlatformSpeechPlayer'
 import '../styles/forecast-alert.css'
-
-type VoiceStatus = 'idle' | 'speaking' | 'completed' | 'unsupported' | 'error'
 
 const VOICE_STATUS_TEXT: Record<VoiceStatus, string> = {
   idle: '语音提示待播放',
   speaking: '正在播报语音提示',
   completed: '语音提示已播报',
-  unsupported: '当前系统不支持语音播报',
+  loading: '正在生成语音提示…',
+  blocked: '点击播放语音提示',
   error: '语音播报失败，请点击重试'
 }
 
@@ -25,56 +26,17 @@ export default function RiskAlarmDialog({
   const actionButtonRef = useRef<HTMLButtonElement>(null)
   const lastSpokenAlarmRef = useRef('')
   const latestAlarmRef = useRef(alarm)
-  const activeSpeechRef = useRef<SpeechSynthesisUtterance | null>(null)
-  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle')
+  const {
+    status: voiceStatus,
+    message: voiceMessage,
+    speak: speakAlarm,
+    stop: stopSpeech,
+    resume
+  } = usePlatformSpeech()
   const alarmId = alarm?.id
-
-  const stopSpeech = useCallback((): void => {
-    if (activeSpeechRef.current) {
-      activeSpeechRef.current = null
-      window.speechSynthesis?.cancel()
-    }
-  }, [])
-
-  const speakAlarm = useCallback(
-    (message: string): void => {
-      if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
-        setVoiceStatus('unsupported')
-        return
-      }
-
-      stopSpeech()
-      const utterance = new window.SpeechSynthesisUtterance(message)
-      activeSpeechRef.current = utterance
-      const chineseVoice = window.speechSynthesis
-        .getVoices()
-        .find((voice) => voice.lang.toLowerCase().startsWith('zh'))
-      if (chineseVoice) utterance.voice = chineseVoice
-      utterance.lang = 'zh-CN'
-      utterance.rate = 0.92
-      utterance.pitch = 1
-      utterance.volume = 1
-      utterance.onstart = () => {
-        if (activeSpeechRef.current === utterance) setVoiceStatus('speaking')
-      }
-      utterance.onend = () => {
-        if (activeSpeechRef.current !== utterance) return
-        activeSpeechRef.current = null
-        setVoiceStatus('completed')
-      }
-      utterance.onerror = (event) => {
-        if (activeSpeechRef.current !== utterance) return
-        activeSpeechRef.current = null
-        if (event.error !== 'canceled' && event.error !== 'interrupted') setVoiceStatus('error')
-      }
-      window.speechSynthesis.speak(utterance)
-    },
-    [stopSpeech]
-  )
 
   const closeDialog = useCallback((): void => {
     stopSpeech()
-    setVoiceStatus(lastSpokenAlarmRef.current ? 'completed' : 'idle')
     onClose()
   }, [onClose, stopSpeech])
 
@@ -89,7 +51,6 @@ export default function RiskAlarmDialog({
       return
     }
     if (lastSpokenAlarmRef.current === alarmId) return
-    setVoiceStatus('idle')
     const timer = window.setTimeout(() => {
       const latestAlarm = latestAlarmRef.current
       if (!latestAlarm || lastSpokenAlarmRef.current === alarmId) return
@@ -99,12 +60,11 @@ export default function RiskAlarmDialog({
     return () => window.clearTimeout(timer)
   }, [alarmId, open, speakAlarm, stopSpeech])
 
-  useEffect(() => stopSpeech, [stopSpeech])
-
   const replayAlarm = (): void => {
     if (!alarm) return
+    if (voiceStatus === 'blocked' && lastSpokenAlarmRef.current === alarm.id && resume()) return
     lastSpokenAlarmRef.current = alarm.id
-    speakAlarm(alarm.message)
+    speakAlarm(alarm.message, true)
   }
 
   useEffect(() => {
@@ -219,9 +179,13 @@ export default function RiskAlarmDialog({
             <i />
             <i />
           </span>
-          <span>{VOICE_STATUS_TEXT[voiceStatus]}</span>
+          <span>
+            {voiceStatus === 'error' || voiceStatus === 'blocked'
+              ? voiceMessage
+              : VOICE_STATUS_TEXT[voiceStatus]}
+          </span>
           <button type="button" onClick={replayAlarm}>
-            重新播报
+            {voiceStatus === 'blocked' ? '点击播放' : '重新播报'}
           </button>
         </div>
 

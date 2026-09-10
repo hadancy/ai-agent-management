@@ -508,6 +508,7 @@
 
 .diagnosis-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -737,4 +738,11 @@
     animation: none !important;
     transition: none !important;
   }
+}
+
+.diagnosis-voice-status {
+  order: 1;
+  flex-basis: 100%;
+  color: #94abc0;
+  font-size: 13px;
 }

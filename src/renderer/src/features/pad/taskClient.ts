@@ -1,8 +1,11 @@
+import { isTiltAdjustmentPlan, type TiltAdjustmentPlan } from '../../../../shared/tilt-adjustment'
+
 export type PadRole = 'A' | 'B' | 'C'
 
 export type PadTaskStatus = 'pending' | 'in_progress' | 'completed'
 
 export interface PadTask {
+  tiltAdjustment?: TiltAdjustmentPlan
   id: string
   workOrderId: string
   workOrderNumber: string
@@ -176,6 +179,10 @@ function resultSummary(role: PadRole, result: UnknownRecord, checkpoint: Unknown
   }
 
   if (role === 'C') {
+    if (result['kind'] === 'tilt_adjustment') {
+      summary.push(`实际倾角：${readString([result], ['adjustedAngle'])} 度`)
+      if (readBoolean([result], ['fasteningConfirmed'])) summary.push('组件及支架紧固已确认')
+    }
     if (readBoolean([result], ['hotspotConfirmed', 'hotspot_confirmed'])) summary.push('已确认热斑')
     const treatment = readString(
       [result],
@@ -257,8 +264,10 @@ function normalizeTask(value: unknown, requestedRole: PadRole, index: number): P
     status === 'in_progress'
   const stringName = readString(records, ['stringName', 'string_name'])
   const componentName = readString(records, ['componentName', 'component_name'])
+  const tiltAdjustment = firstValue(records, ['tiltAdjustment'])
 
   return {
+    tiltAdjustment: isTiltAdjustmentPlan(tiltAdjustment) ? tiltAdjustment : undefined,
     id,
     workOrderId: readString(records, ['workOrderId', 'work_order_id', 'orderId', 'id']),
     workOrderNumber,

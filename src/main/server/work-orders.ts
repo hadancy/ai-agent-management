@@ -15,6 +15,7 @@ import type {
   SubmitTreatmentTaskRequest,
   TelemetrySnapshot,
   TreatmentTaskResult,
+  TiltAdjustmentTaskResult,
   WorkOrder,
   WorkOrderDetail,
   WorkOrderPriority,
@@ -28,6 +29,12 @@ import type {
 import type { AppDatabase } from './database'
 import { PlcSynchronizedClock, STATION_TIME_ZONE } from '../../shared/plc-clock'
 import { compareWorkOrders } from '../../shared/work-order-sort'
+import {
+  getTiltAdvice,
+  getTiltReply,
+  isTiltAdjustmentPlan,
+  type TiltAdjustmentPlan
+} from '../../shared/tilt-adjustment'
 
 const DEFAULT_NORMAL_VOLTAGE = 613
 const DEFAULT_NORMAL_CURRENT = 9.4
@@ -86,6 +93,29 @@ const TASK_TEMPLATES: TaskTemplate[] = [
     ]
   }
 ]
+
+function tiltTaskTemplates(plan: TiltAdjustmentPlan): TaskTemplate[] {
+  const advice = getTiltAdvice(plan.month)
+  return TASK_TEMPLATES.map((template) => {
+    if (template.role === 'A')
+      return {
+        ...template,
+        description: `全程监护${advice.season}组件倾角调整作业，监督作业安全，发现违章立即制止。`
+      }
+    if (template.role === 'B')
+      return {
+        ...template,
+        description:
+          '作业前确认待调整光伏组串已隔离，完成验电和安全措施；倾角调整完成后确认恢复组串连接和送电。'
+      }
+    return {
+      ...template,
+      title: `执行${advice.season}倾角`,
+      description: `依据${plan.month}月项目资料「${plan.fileName}」，将组件倾角调整为${advice.minAngle}至${advice.maxAngle}度。${advice.explanation}调整后确认支架紧固并复测，记录实际倾角。`,
+      risks: ['高处作业坠落', '支架调整夹伤', '组件松动或滑落', '误碰带电部位']
+    }
+  })
+}
 
 export class WorkOrderRequestError extends Error {
   constructor(
@@ -207,7 +237,12 @@ function capabilities(
       return { allowedActions: ['checkpoint'], blockedReason: null }
     }
     if (taskC.status === 'submitted') return { allowedActions: ['submit'], blockedReason: null }
-    return { allowedActions: [], blockedReason: '需等待C员工完成热斑处理并提交' }
+    return {
+      allowedActions: [],
+      blockedReason: workOrder.tiltAdjustment
+        ? '需等待C员工完成倾角调整并提交'
+        : '需等待C员工完成热斑处理并提交'
+    }
   }
 
   if (task.status === 'pending') {
@@ -310,6 +345,7 @@ function assignedTask(workOrder: WorkOrder, task: WorkOrderTask): AssignedWorkOr
   const voiceText = `${task.assigneeName}您有新工单。工单编号${workOrder.orderNumber}，故障类型：${workOrder.faultType}。您的任务：${task.description}风险点：${riskText}。请规范操作，注意安全。`
   return {
     ...task,
+    tiltAdjustment: workOrder.tiltAdjustment,
     workOrderNumber: workOrder.orderNumber,
     stationName: workOrder.stationName,
     stringName: workOrder.stringName,
@@ -351,6 +387,10 @@ export class WorkOrderService {
       throw new WorkOrderRequestError(400, 'INVALID_REQUEST', '请求体必须是对象')
     }
     const input = (value ?? {}) as CreateWorkOrderDraftRequest
+    if (input.tiltAdjustment !== undefined && !isTiltAdjustmentPlan(input.tiltAdjustment)) {
+      throw new WorkOrderRequestError(400, 'INVALID_REQUEST', '工单信息不完整，请重新上传资料。')
+    }
+    const tiltAdjustment = input.tiltAdjustment
     const latestDevice = this.options
       .getLatestSnapshot()
       ?.devices.find((device) => device.id === TARGET_DEVICE_ID)
@@ -361,11 +401,14 @@ export class WorkOrderService {
     }
     const stringName = readOptionalText(input.stringName, 'stringName') ?? '1号光伏组串'
     const componentName = readOptionalText(input.componentName, 'componentName') ?? '1号组件'
-    const faultType = readOptionalText(input.faultType, 'faultType') ?? '组件热斑'
-    const handlingSuggestion =
-      readOptionalText(input.handlingSuggestion, 'handlingSuggestion') ??
-      '隔离组串、现场确认并清理或更换1号组件、复测'
-    const priority = input.priority ?? 'urgent'
+    const faultType = tiltAdjustment
+      ? `${getTiltAdvice(tiltAdjustment.month).season}倾角调整`
+      : (readOptionalText(input.faultType, 'faultType') ?? '组件热斑')
+    const handlingSuggestion = tiltAdjustment
+      ? getTiltReply(tiltAdjustment.month)
+      : (readOptionalText(input.handlingSuggestion, 'handlingSuggestion') ??
+        '隔离组串、现场确认并清理或更换1号组件、复测')
+    const priority = input.priority ?? (tiltAdjustment ? 'normal' : 'urgent')
     if (priority !== 'normal' && priority !== 'urgent') {
       throw new WorkOrderRequestError(400, 'INVALID_REQUEST', 'priority 必须为 normal 或 urgent')
     }
@@ -387,13 +430,29 @@ export class WorkOrderService {
     const tolerance = tolerancePercent / 100
     const now = this.now()
     const timestamp = now.toISOString()
-    const dedupeKey = [stationName, deviceId, componentName, faultType]
+    const dedupeKey = (
+      tiltAdjustment
+        ? ['tilt-adjustment', tiltAdjustment.requestId]
+        : [stationName, deviceId, componentName, faultType]
+    )
       .map((part) => part.trim().toLocaleLowerCase('zh-CN'))
       .join('|')
 
     const result = this.options.database.runInTransaction(() => {
       const existing = this.options.database.findOpenWorkOrder(dedupeKey)
       if (existing) {
+        if (
+          tiltAdjustment &&
+          (existing.tiltAdjustment?.month !== tiltAdjustment.month ||
+            existing.tiltAdjustment.fileName !== tiltAdjustment.fileName ||
+            existing.tiltAdjustment.fileSize !== tiltAdjustment.fileSize)
+        ) {
+          throw new WorkOrderRequestError(
+            409,
+            'REQUEST_CONFLICT',
+            '该上传请求已生成不同内容的工单，请重新上传资料'
+          )
+        }
         return {
           workOrder: hydrateWorkOrder(existing),
           created: false,
@@ -403,7 +462,8 @@ export class WorkOrderService {
 
       const id = randomUUID()
       const orderNumber = this.options.database.nextWorkOrderNumber(shanghaiDatePart(now))
-      const tasks: WorkOrderTask[] = TASK_TEMPLATES.map((template) => ({
+      const templates = tiltAdjustment ? tiltTaskTemplates(tiltAdjustment) : TASK_TEMPLATES
+      const tasks: WorkOrderTask[] = templates.map((template) => ({
         id: randomUUID(),
         workOrderId: id,
         ...template,
@@ -417,6 +477,7 @@ export class WorkOrderService {
         blockedReason: '工单尚未审核下达'
       }))
       const workOrder: WorkOrder = {
+        tiltAdjustment,
         id,
         orderNumber,
         stationName,
@@ -693,6 +754,39 @@ export class WorkOrderService {
           restorationNotes: restoration.notes,
           role: 'B'
         } satisfies IsolationTaskResult
+      } else if (workOrder.tiltAdjustment) {
+        if (!isRecord(value))
+          throw new WorkOrderRequestError(400, 'INVALID_REQUEST', '请求体不能为空')
+        const advice = getTiltAdvice(workOrder.tiltAdjustment.month)
+        const adjustedAngle = readNumber(value['adjustedAngle'], NaN, 'adjustedAngle')
+        if (
+          !Number.isFinite(adjustedAngle) ||
+          adjustedAngle < advice.minAngle ||
+          adjustedAngle > advice.maxAngle
+        ) {
+          throw new WorkOrderRequestError(
+            400,
+            'INVALID_REQUEST',
+            `实际倾角必须为${advice.minAngle}至${advice.maxAngle}度`
+          )
+        }
+        const fasteningConfirmed = readBoolean(value['fasteningConfirmed'], 'fasteningConfirmed')
+        const retestPassed = readBoolean(value['retestPassed'], 'retestPassed')
+        if (!fasteningConfirmed || !retestPassed) {
+          throw new WorkOrderRequestError(
+            409,
+            'TASK_RESULT_NOT_READY',
+            '请完成支架紧固确认和调整后复测'
+          )
+        }
+        task.result = {
+          role: 'C',
+          kind: 'tilt_adjustment',
+          adjustedAngle,
+          fasteningConfirmed,
+          retestPassed,
+          notes: readOptionalText(value['notes'], 'notes')
+        } satisfies TiltAdjustmentTaskResult
       } else {
         task.result = { role: 'C', ...parseTreatmentResult(value) } satisfies TreatmentTaskResult
       }

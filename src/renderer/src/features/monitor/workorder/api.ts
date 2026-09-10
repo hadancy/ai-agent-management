@@ -1,3 +1,5 @@
+import type { TiltAdjustmentPlan } from '../../../../../shared/tilt-adjustment'
+
 export type WorkOrderStatus =
   'pending_review' | 'dispatched' | 'in_progress' | 'plc_verifying' | 'closed'
 
@@ -30,6 +32,7 @@ export type PlcVerification = {
 }
 
 export type WorkOrder = {
+  tiltAdjustment?: TiltAdjustmentPlan
   id: string
   orderNumber: string
   stationName: string
@@ -64,6 +67,7 @@ export type WorkOrder = {
 }
 
 export type CreateWorkOrderDraftInput = {
+  tiltAdjustment?: TiltAdjustmentPlan
   stationName?: string
   deviceId?: 'pv-1'
   stringName?: string

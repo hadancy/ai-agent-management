@@ -38,8 +38,21 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
+      - name: Prepare and verify offline Chinese speech
+        run: |
+          npm run prepare:speech
+          npm run test:speech
+        env:
+          SPEECH_SMOKE_NATIVE: '1'
+
       - name: Package application
         run: npm run build:win
+
+      - name: Verify packaged speech resources
+        run: node node_modules/.cache/speech-server-smoke.cjs
+        env:
+          SPEECH_SMOKE_NATIVE: '1'
+          SPEECH_SMOKE_RESOURCES: dist/win-unpacked/resources
 
       - name: Upload installers
         uses: actions/upload-artifact@v7

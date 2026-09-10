@@ -12,15 +12,21 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test:alarms": "node scripts/risk-alarm-smoke.mjs",
+    "test:tilt": "node scripts/tilt-assistant-smoke.mjs",
+    "test:speech": "npm run test:qwen && esbuild scripts/speech-server-smoke.ts --bundle --platform=node --format=cjs --packages=external --outfile=node_modules/.cache/speech-server-smoke.cjs && node node_modules/.cache/speech-server-smoke.cjs && node scripts/pad-speech-smoke.mjs && node scripts/platform-speech-smoke.mjs && npm run test:alarms",
     "test:plc": "esbuild scripts/plc-smoke.ts --bundle --platform=node --format=cjs --packages=external --outfile=node_modules/.cache/plc-smoke.cjs && node node_modules/.cache/plc-smoke.cjs",
     "start": "electron-vite preview",
-    "dev": "electron-vite dev",
+    "dev": "electron-vite dev --watch",
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win --x64",
     "build:mac": "electron-vite build && electron-builder --mac",
-    "build:linux": "electron-vite build && electron-builder --linux"
+    "build:linux": "electron-vite build && electron-builder --linux",
+    "prepare:speech": "node scripts/prepare-speech.cjs",
+    "predev": "npm run prepare:speech",
+    "prestart": "npm run prepare:speech",
+    "test:qwen": "esbuild scripts/qwen-speech-smoke.ts --bundle --platform=node --format=cjs --packages=external --outfile=node_modules/.cache/qwen-speech-smoke.cjs && node node_modules/.cache/qwen-speech-smoke.cjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -55,6 +61,7 @@
     "prettier": "^3.7.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
+    "resedit": "1.7.2",
     "typescript": "^5.9.3",
     "vite": "^7.2.6"
   }

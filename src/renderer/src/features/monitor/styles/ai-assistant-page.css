@@ -93,6 +93,54 @@
   gap: 20px;
 }
 
+.assistant-chat-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+  min-width: 0;
+}
+.assistant-switcher {
+  display: flex;
+  gap: 10px;
+}
+.assistant-switcher button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  padding: 12px 18px;
+  border: 1px solid #2d4159;
+  border-radius: 10px;
+  background: #0e1d30;
+  color: #8dabc2;
+  text-align: left;
+}
+.assistant-switcher button[aria-pressed='true'] {
+  border-color: #718bbd;
+  background: #213452;
+  color: #d7e5ff;
+}
+.assistant-switcher strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 550;
+}
+.assistant-switcher small {
+  display: block;
+  margin-top: 5px;
+  color: #91a8c3;
+  font-size: 10px;
+}
+.assistant-chat-pane {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
+.assistant-chat-pane[hidden] {
+  display: none;
+}
+
 .assistant-sidebar {
   min-height: 0;
   display: flex;

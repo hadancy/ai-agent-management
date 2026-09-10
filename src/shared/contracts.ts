@@ -1,3 +1,5 @@
+import type { TiltAdjustmentPlan } from './tilt-adjustment'
+
 export type CollectorMode = 'simulation' | 'plc-tcp'
 
 export type DeviceStatus = 'normal' | 'warning' | 'offline'
@@ -111,11 +113,21 @@ export interface EquipmentInspectionTaskResult {
   retestPassed: boolean
 }
 
+export interface TiltAdjustmentTaskResult {
+  role: 'C'
+  kind: 'tilt_adjustment'
+  adjustedAngle: number
+  fasteningConfirmed: boolean
+  retestPassed: boolean
+  notes?: string
+}
+
 export type WorkOrderTaskResult =
   | SafetyMonitorTaskResult
   | IsolationTaskResult
   | TreatmentTaskResult
   | EquipmentInspectionTaskResult
+  | TiltAdjustmentTaskResult
 
 export interface WorkOrderTask {
   id: string
@@ -136,6 +148,7 @@ export interface WorkOrderTask {
 }
 
 export interface WorkOrder {
+  tiltAdjustment?: TiltAdjustmentPlan
   id: string
   orderNumber: string
   stationName: string
@@ -183,6 +196,7 @@ export interface WorkOrderDetail extends WorkOrder {
 }
 
 export interface CreateWorkOrderDraftRequest {
+  tiltAdjustment?: TiltAdjustmentPlan
   stationName?: string
   deviceId?: string
   stringName?: string
@@ -227,6 +241,7 @@ export interface DispatchWorkOrderRequest {
 }
 
 export interface AssignedWorkOrderTask extends WorkOrderTask {
+  tiltAdjustment?: TiltAdjustmentPlan
   workOrderNumber: string
   stationName: string
   stringName: string
@@ -275,7 +290,10 @@ export interface SubmitTreatmentTaskRequest {
 }
 
 export type SubmitWorkOrderTaskRequest =
-  SubmitSafetyMonitorTaskRequest | SubmitIsolationTaskRequest | SubmitTreatmentTaskRequest
+  | SubmitSafetyMonitorTaskRequest
+  | SubmitIsolationTaskRequest
+  | SubmitTreatmentTaskRequest
+  | Omit<TiltAdjustmentTaskResult, 'role' | 'kind'>
 
 export interface WorkOrderTaskEventPayload {
   task: WorkOrderTask

@@ -1,9 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { WINDOW_CONTROL_CHANNELS, type DesktopAPI } from '../shared/window-controls'
+import { SPEECH_CHANNELS } from '../shared/speech-settings'
 
 // Custom APIs for renderer
 const api: DesktopAPI = {
+  speechSettings: {
+    get: () => ipcRenderer.invoke(SPEECH_CHANNELS.get),
+    save: (input) => ipcRenderer.invoke(SPEECH_CHANNELS.save, input),
+    test: () => ipcRenderer.invoke(SPEECH_CHANNELS.test)
+  },
   windowControls: {
     minimize: () => ipcRenderer.invoke(WINDOW_CONTROL_CHANNELS.minimize),
     toggleMaximize: () => ipcRenderer.invoke(WINDOW_CONTROL_CHANNELS.toggleMaximize),

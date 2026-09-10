@@ -425,6 +425,12 @@
   cursor: pointer;
 }
 
+.pad-voice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .pad-offline-banner,
 .pad-sync-error,
 .pad-success-toast {
@@ -1210,9 +1216,13 @@
     grid-template-columns: auto 1fr;
   }
 
-  .pad-voice-card > button {
+  .pad-voice-actions {
     grid-column: 1 / -1;
     width: 100%;
+  }
+
+  .pad-voice-actions > button {
+    flex: 1;
   }
 
   .task-meta {

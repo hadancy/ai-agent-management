@@ -1,0 +1,25 @@
+{
+  "model": {
+    "name": "vits-icefall-zh-aishell3",
+    "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-icefall-zh-aishell3.tar.bz2",
+    "sha256": "ab468db3a3308cdd861495e0db2f25d79418a0c00639f74944c7cdf5dd8c6ec1"
+  },
+  "runtimes": {
+    "win-x64": {
+      "name": "sherpa-onnx-v1.13.7-win-x64-shared-MT-Release",
+      "sha256": "0b8f4a8cdde53cee671b0647947c66e10efec1b63ed2606c8eeac650071c9c60"
+    },
+    "mac-arm64": {
+      "name": "sherpa-onnx-v1.13.7-osx-arm64-shared",
+      "sha256": "c4789fc9d1d06c0c8095aaadba040f524db869c0f90ac40db93aa71bb4375996"
+    },
+    "mac-x64": {
+      "name": "sherpa-onnx-v1.13.7-osx-universal2-shared",
+      "sha256": "a486bb987f9ccff182768bf75c39e81c2d3e4ba7143368e9e00139becc441cb5"
+    },
+    "linux-x64": {
+      "name": "sherpa-onnx-v1.13.7-linux-x64-shared",
+      "sha256": "95b9f4358e2d5522a0bd987c3ee91128e31f8abf4340927cab32e438300f3c24"
+    }
+  }
+}

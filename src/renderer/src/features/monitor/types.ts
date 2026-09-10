@@ -1,4 +1,4 @@
-export type ConsoleNav = '首页' | '综合监控' | 'AI 智能助手' | '工单中心' | '设置中心'
+export type ConsoleNav = '首页' | '综合监控' | '智诊精巡' | '工单中心' | '设置中心'
 export type MonitorSection = 'energy' | 'forecast'
 
 export type StringMetric = {
