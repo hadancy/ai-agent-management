@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import AssistantIcon from './AssistantIcon'
 import { usePlatformSpeech } from '../../../speech/usePlatformSpeech'
 import type { VoiceStatus } from '../../../speech/PlatformSpeechPlayer'
+import { DIAGNOSIS_SPEECH_TEXT } from '../../../../../shared/recorded-speech'
 import ClearChatDialog from './ClearChatDialog'
 import '../styles/ai-assistant.css'
 
@@ -26,13 +27,12 @@ const DIAGNOSIS_CONTENT = [
   ['可能原因', '局部遮挡、组件内部缺陷、热斑效应'],
   ['处理建议', '隔离该组串，现场确认并更换或清洗组件']
 ] as const
-const DIAGNOSIS_VOICE_TEXT =
-  '故障类型：组件热斑。故障位置：光明村光伏电站1号组件。可能原因：局部遮挡、组件内部缺陷、热斑效应。处理建议：隔离该组串，现场确认并更换或清洗组件。工单草稿已生成，等待人工审核下达。'
+const DIAGNOSIS_VOICE_TEXT = DIAGNOSIS_SPEECH_TEXT
 const VOICE_STATUS_TEXT: Record<VoiceStatus, string> = {
   idle: '语音播报',
   speaking: '停止播报',
   completed: '重新播报',
-  loading: '取消生成',
+  loading: '取消加载',
   blocked: '点击播放',
   error: '重试播报'
 }
@@ -148,8 +148,8 @@ export default function AiAssistant({
 
   useEffect(() => {
     const chatList = chatListRef.current
-    if (chatList) chatList.scrollTop = chatList.scrollHeight
-  }, [messages])
+    if (chatList) chatList.scrollTop = isEmpty ? 0 : chatList.scrollHeight
+  }, [isEmpty, messages])
 
   useEffect(() => {
     try {
@@ -499,12 +499,11 @@ export default function AiAssistant({
                               ]
                             }
                           </button>
-                          {voiceMessageId === message.id &&
-                            (voiceStatus === 'blocked' || voiceStatus === 'error') && (
-                              <span className="diagnosis-voice-status" role="status">
-                                {voiceMessage}
-                              </span>
-                            )}
+                          {voiceMessageId === message.id && voiceStatus !== 'idle' && (
+                            <span className="diagnosis-voice-status" role="status">
+                              {voiceMessage}
+                            </span>
+                          )}
                           {message.draftStatus === 'error' ? (
                             <button
                               type="button"

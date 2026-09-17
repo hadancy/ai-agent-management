@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useFontScale } from '../../../settings/fontSize'
 import type { TelemetrySnapshot } from '../../../../../shared/contracts'
 import EChartCanvas from './EChartCanvas'
 import type { EChartsOption } from './chartRuntime'
@@ -75,11 +76,14 @@ function roundedAxisMaximum(values: number[], minimum: number): number {
 
 export default function RealtimeChart({
   history,
-  plcClockOffsetMs
+  plcClockOffsetMs,
+  embedded = false
 }: {
   history: TelemetrySnapshot[]
   plcClockOffsetMs?: number
+  embedded?: boolean
 }): React.JSX.Element {
+  const fontScale = useFontScale()
   const labels = useMemo(
     () => createPlcAlignedLabels(history, plcClockOffsetMs),
     [history, plcClockOffsetMs]
@@ -116,15 +120,21 @@ export default function RealtimeChart({
       animation: false,
       textStyle: {
         color: '#aeb3ba',
+        fontSize: 12 * fontScale,
         fontFamily: 'Inter, "PingFang SC", "Microsoft YaHei", sans-serif'
       },
-      grid: { left: 47, right: 43, top: 21, bottom: 29 },
+      grid: {
+        left: 47 * fontScale,
+        right: 43 * fontScale,
+        top: 21 * fontScale,
+        bottom: 29 * fontScale
+      },
       tooltip: {
         trigger: 'axis',
         formatter: (params: unknown) => createRealtimeTooltip(params, deviceSeries),
         backgroundColor: 'rgba(4, 28, 47, 0.97)',
         borderColor: '#17658a',
-        textStyle: { color: '#dce9f1', fontSize: 10 },
+        textStyle: { color: '#dce9f1', fontSize: 10 * fontScale },
         axisPointer: { type: 'line', lineStyle: { color: 'rgba(55, 202, 244, 0.45)' } }
       },
       xAxis: {
@@ -137,7 +147,7 @@ export default function RealtimeChart({
           interval: 0,
           hideOverlap: true,
           color: '#aaaeb5',
-          fontSize: 10,
+          fontSize: 10 * fontScale,
           formatter: (value: string, index: number) => (visibleLabelIndexes.has(index) ? value : '')
         },
         splitLine: { show: false }
@@ -149,10 +159,10 @@ export default function RealtimeChart({
           min: 0,
           max: voltageMaximum,
           interval: voltageMaximum / 4,
-          nameTextStyle: { color: '#b0b5bc', fontSize: 10, padding: [0, 0, 0, -8] },
+          nameTextStyle: { color: '#b0b5bc', fontSize: 10 * fontScale, padding: [0, 0, 0, -8] },
           axisLine: { show: true, lineStyle: { color: 'rgba(137, 154, 169, 0.48)' } },
           axisTick: { show: false },
-          axisLabel: { color: '#aaaeb5', fontSize: 10 },
+          axisLabel: { color: '#aaaeb5', fontSize: 10 * fontScale },
           splitLine: {
             show: true,
             lineStyle: { color: 'rgba(103, 127, 146, 0.2)', type: 'dashed' }
@@ -164,10 +174,10 @@ export default function RealtimeChart({
           min: 0,
           max: currentMaximum,
           interval: currentMaximum / 5,
-          nameTextStyle: { color: '#b0b5bc', fontSize: 10, padding: [0, -5, 0, 0] },
+          nameTextStyle: { color: '#b0b5bc', fontSize: 10 * fontScale, padding: [0, -5, 0, 0] },
           axisLine: { show: true, lineStyle: { color: 'rgba(137, 154, 169, 0.48)' } },
           axisTick: { show: false },
-          axisLabel: { color: '#aaaeb5', fontSize: 10 },
+          axisLabel: { color: '#aaaeb5', fontSize: 10 * fontScale },
           splitLine: { show: false }
         }
       ],
@@ -191,16 +201,22 @@ export default function RealtimeChart({
         }
       ])
     }),
-    [currentMaximum, deviceSeries, labels, visibleLabelIndexes, voltageMaximum]
+    [currentMaximum, deviceSeries, fontScale, labels, visibleLabelIndexes, voltageMaximum]
   )
 
   return (
-    <section className="panel chart-panel">
+    <section className={`panel chart-panel${embedded ? ' chart-panel--embedded' : ''}`}>
       <div className="panel-heading chart-heading">
-        <h2>实时电压 / 电流趋势</h2>
-        <select defaultValue="每5秒更新" aria-label="趋势更新时间">
-          <option>每5秒更新</option>
-        </select>
+        {embedded ? (
+          <span className="auxiliary-chart-description">最近 4 分钟 · 每 5 秒更新</span>
+        ) : (
+          <>
+            <h2>实时电压 / 电流趋势</h2>
+            <select defaultValue="每5秒更新" aria-label="趋势更新时间">
+              <option>每5秒更新</option>
+            </select>
+          </>
+        )}
       </div>
       <div className="chart-legend chart-legend--realtime">
         {deviceSeries.map((device) => (

@@ -2,7 +2,7 @@ appId: com.aiagent.management
 productName: AI智能体辅助管理平台
 directories:
   buildResources: build
-beforePack: scripts/prepare-speech.cjs
+beforePack: scripts/prepare-recorded-speech.cjs
 files:
   - '!**/.vscode/*'
   - '!src/*'
@@ -12,13 +12,10 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!resources/offline-tts/**'
   - '!resources/speech-licenses/**'
+  - '!resources/recorded-speech/**'
 extraResources:
-  - from: resources/offline-tts/model
-    to: offline-tts/model
-  - from: resources/offline-tts/${os}-${arch}
-    to: offline-tts/runtime
-  - from: resources/speech-licenses
-    to: offline-tts/licenses
+  - from: resources/recorded-speech
+    to: recorded-speech
 asarUnpack:
   - resources/**
   - node_modules/better-sqlite3/**

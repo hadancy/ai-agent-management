@@ -33,17 +33,18 @@ function toConnectionDraft(connection: PlcConnection): ConnectionDraft {
   ) as ConnectionDraft
 }
 
-function toClockDraft(clock: PlcClockValues): ClockDraft {
-  return Object.fromEntries(PLC_CLOCK_FIELDS.map((field) => [field.id, String(clock[field.id])]))
-}
-
 function formatValue(value: number | null | undefined): string {
   if (value === undefined) return '—'
   if (value === null) return '无效数值'
   return String(Number(value.toPrecision(8)))
 }
 
+function toClockDraft(clock: PlcClockValues): ClockDraft {
+  return Object.fromEntries(PLC_CLOCK_FIELDS.map((field) => [field.id, String(clock[field.id])]))
+}
+
 function formatClock(clock: PlcClockValues): string {
+  if (validatePlcClock(clock)) return 'PLC 时间未初始化或无效'
   const pad = (value: number): string => String(value).padStart(2, '0')
   return `${clock.year}-${pad(clock.month)}-${pad(clock.day)} ${pad(clock.hour)}:${pad(clock.minute)}:${pad(clock.second)} · 星期值 ${clock.weekday}`
 }
@@ -138,10 +139,10 @@ export default function PlcDebugPage(): React.JSX.Element {
     )
   }
   const parsedClock = Object.fromEntries(
-    PLC_CLOCK_FIELDS.map((field) => [
-      field.id,
-      clockDraft[field.id]?.trim() ? Number(clockDraft[field.id]) : NaN
-    ])
+    PLC_CLOCK_FIELDS.map((field) => {
+      const value = clockDraft[field.id]?.trim()
+      return [field.id, value ? Number(value) : NaN]
+    })
   ) as PlcClockValues
   const clockError = validatePlcClock(parsedClock)
 
@@ -158,6 +159,7 @@ export default function PlcDebugPage(): React.JSX.Element {
 
   const acceptSnapshot = (data: PlcReadResponse): void => {
     setSnapshot(data)
+    setClockDraft((current) => (Object.keys(current).length ? current : toClockDraft(data.clock)))
     setDraft((current) =>
       Object.fromEntries(
         PLC_POINTS.map((point) => [
@@ -166,7 +168,6 @@ export default function PlcDebugPage(): React.JSX.Element {
         ])
       )
     )
-    setClockDraft((current) => (Object.keys(current).length ? current : toClockDraft(data.clock)))
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data.connection))
     } catch {
@@ -374,12 +375,12 @@ export default function PlcDebugPage(): React.JSX.Element {
         {notice.text}
       </div>
 
-      <section className="plc-card" aria-label="电压电流点位">
+      <section className="plc-card" aria-label="电压电流与功率点位">
         <div className="plc-section-heading">
           <div>
             <span className="plc-step">02</span>
-            <h2>电压与电流</h2>
-            <span className="plc-count">10 个点位</span>
+            <h2>电压、电流与功率</h2>
+            <span className="plc-count">{PLC_POINTS.length} 个点位</span>
           </div>
           <div className="plc-batch">
             <span>已选 {selected.length} 项</span>
@@ -445,7 +446,11 @@ export default function PlcDebugPage(): React.JSX.Element {
                     <td>
                       <strong>{point.label}</strong>
                       <span className="plc-type">
-                        {point.type === 'WORD' ? 'WORD · 16 位无符号 · ÷1000' : 'REAL · 32 位浮点'}
+                        {point.type === 'WORD'
+                          ? `WORD · 16 位无符号 · ÷${point.scale}`
+                          : point.type === 'UINT'
+                            ? 'UInt · 16 位无符号 · 整数 MW'
+                            : 'REAL · 32 位浮点'}
                       </span>
                     </td>
                     <td>
@@ -462,15 +467,19 @@ export default function PlcDebugPage(): React.JSX.Element {
                       <div className="plc-value-input">
                         <input
                           type="number"
-                          step={point.type === 'WORD' ? 1 / point.scale : 'any'}
-                          min={point.type === 'WORD' ? 0 : undefined}
-                          max={point.type === 'WORD' ? 65535 / point.scale : undefined}
+                          step={point.type !== 'REAL' ? 1 / point.scale : 'any'}
+                          min={point.type !== 'REAL' ? 0 : undefined}
+                          max={point.type !== 'REAL' ? 65535 / point.scale : undefined}
                           aria-label={`${point.label}待写入值`}
-                          placeholder={point.type === 'WORD' ? '0–65.535' : '输入数值'}
+                          placeholder={
+                            point.type !== 'REAL' ? `0–${65535 / point.scale}` : '输入数值'
+                          }
                           title={
                             point.type === 'WORD'
-                              ? '输入换算后的数值（0–65.535，最多3位小数），写入时自动乘以1000'
-                              : '输入32位浮点数'
+                              ? `输入换算后的数值（0–${65535 / point.scale}，最多${Math.log10(point.scale)}位小数），写入时自动乘以${point.scale}`
+                              : point.type === 'UINT'
+                                ? '输入整数功率（0–65535 MW），直接写入原始值'
+                                : '输入32位浮点数'
                           }
                           disabled={Boolean(busy) || !snapshot}
                           value={draft[point.id] ?? ''}
@@ -551,6 +560,13 @@ export default function PlcDebugPage(): React.JSX.Element {
             {300 + connection.registerAddressOffset}–HR{303 + connection.registerAddressOffset}。
           </p>
           <div>
+            <button
+              type="button"
+              disabled={Boolean(busy) || !connectionValid}
+              onClick={() => void read()}
+            >
+              读取 PLC 时间
+            </button>
             <button type="button" disabled={Boolean(busy) || !snapshot} onClick={useLocalTime}>
               填入本机时间
             </button>
@@ -560,7 +576,7 @@ export default function PlcDebugPage(): React.JSX.Element {
               disabled={Boolean(busy) || !snapshot || Boolean(clockError)}
               onClick={() => void write([], true)}
             >
-              写入 PLC 时钟
+              写入 PLC 时间
             </button>
           </div>
         </div>
@@ -592,7 +608,7 @@ export default function PlcDebugPage(): React.JSX.Element {
                   <p>
                     提交：
                     {typeof result.requested === 'number'
-                      ? result.requested
+                      ? formatValue(result.requested)
                       : formatClock(result.requested)}
                     {result.actual !== undefined &&
                       ` · 回读：${typeof result.actual === 'object' && result.actual !== null ? formatClock(result.actual) : formatValue(result.actual)}`}

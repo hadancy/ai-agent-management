@@ -26,14 +26,14 @@
 .settings-heading span,
 .settings-preview__eyebrow {
   color: #2dd7f1;
-  font-size: 12px;
+  font-size: 0.75rem;
   letter-spacing: 0.16em;
 }
 
 .settings-heading h2 {
   margin: 6px 0 8px;
   color: #f1f5f7;
-  font-size: 28px;
+  font-size: 1.75rem;
   font-weight: 520;
 }
 
@@ -41,7 +41,7 @@
 .settings-card p {
   margin: 0;
   color: #8fa6b6;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .settings-rule-state {
@@ -53,7 +53,7 @@
   border-radius: 20px;
   color: #88e8ac;
   background: rgba(20, 96, 53, 0.18);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .settings-rule-state i {
@@ -95,14 +95,14 @@
   border-radius: 8px;
   color: #47dcf4;
   background: rgba(9, 102, 139, 0.25);
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 650;
 }
 
 .settings-card h3 {
   margin: 0 0 5px;
   color: #edf3f6;
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 520;
 }
 
@@ -113,7 +113,7 @@
   min-height: 67px;
   border-top: 1px solid rgba(92, 127, 151, 0.2);
   color: #bdcbd5;
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 .settings-input {
@@ -138,7 +138,7 @@
   outline: 0;
   color: #eef9fd;
   background: transparent;
-  font-size: 17px;
+  font-size: 1.0625rem;
 }
 
 .settings-input b {
@@ -146,13 +146,13 @@
   place-items: center;
   border-left: 1px solid rgba(55, 143, 185, 0.45);
   color: #71cde5;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
 }
 
 .settings-error {
   color: #ff8f78 !important;
-  font-size: 12px !important;
+  font-size: 0.75rem !important;
 }
 
 .settings-actions {
@@ -189,7 +189,7 @@
 
 .settings-preview h3 {
   margin: 8px 0 25px;
-  font-size: 21px;
+  font-size: 1.3125rem;
 }
 
 .settings-range {
@@ -201,12 +201,12 @@
   display: block;
   margin-bottom: 7px;
   color: #8ca5b5;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .settings-range strong {
   color: #e8f8fc;
-  font-size: 22px;
+  font-size: 1.375rem;
   font-weight: 520;
 }
 
@@ -221,7 +221,7 @@
 .settings-logic h4 {
   margin: 0 0 14px;
   color: #d8e7ed;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 520;
 }
 
@@ -230,7 +230,7 @@
   align-items: center;
   gap: 10px;
   margin-top: 10px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .settings-dot {
@@ -268,6 +268,91 @@
   border-color: #22b9df;
   background: #0c5874;
 }
+
+.display-settings {
+  align-items: start;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.8fr);
+}
+
+.font-size-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  margin: 0 0 24px;
+  border: 0;
+}
+
+.font-size-options legend {
+  margin-bottom: 14px;
+  color: #bdcbd5;
+  font-size: 0.9375rem;
+}
+
+.settings-card .font-size-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  min-height: 90px;
+  padding: 14px 8px;
+  border: 1px solid #235674;
+  border-radius: 8px;
+  background: #08263d;
+  cursor: pointer;
+}
+
+.font-size-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.font-size-option:has(input:checked) {
+  border-color: #22b9df;
+  color: #edfbff;
+  background: #0c5874;
+  box-shadow: inset 0 0 0 1px #22b9df;
+}
+
+.font-size-option:has(input:focus-visible) {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.font-size-option small {
+  color: #94bed1;
+  font-size: 0.75rem;
+}
+
+.display-settings__hint,
+.font-size-preview p {
+  line-height: 1.8;
+}
+
+.display-settings__actions {
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.display-settings__actions button {
+  height: auto;
+  min-height: 42px;
+  padding: 10px 16px;
+}
+
+.font-size-preview .settings-range {
+  margin-top: 24px;
+}
+
+.font-size-preview .font-size-preview__caption {
+  font-size: 0.75rem;
+}
+
 .speech-settings {
   margin-top: 22px;
 }
@@ -295,13 +380,13 @@
   background: #051b2b;
   border: 1px solid #307395;
   border-radius: 5px;
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 .speech-settings__key {
   grid-column: 1 / -1;
 }
 .speech-settings__fields strong {
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 500;
 }
 .speech-settings__help {
@@ -309,11 +394,11 @@
 }
 .speech-settings__help p {
   margin-bottom: 6px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .speech-settings__help a {
   color: #64d4ec;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .speech-settings__message {
   margin-top: 14px !important;

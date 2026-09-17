@@ -1,10 +1,25 @@
 import { STATION_TIME_ZONE } from './plc-clock'
 
+export const MAX_TILT_REQUEST_LENGTH = 2000
+
 export interface TiltAdjustmentPlan {
   month: number
   fileName: string
   fileSize: number
   requestId: string
+  userRequest?: string
+  analysisVersion?: 2
+  analysisDate?: string
+  fieldWorkflowVersion?: 1
+}
+
+export function isAnalysisDate(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    Number.isFinite(Date.parse(`${value}T00:00:00Z`)) &&
+    new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value
+  )
 }
 
 export interface TiltAdvice {
@@ -61,14 +76,26 @@ export function isTiltAdjustmentPlan(value: unknown): value is TiltAdjustmentPla
   if (typeof value !== 'object' || value === null) return false
   const plan = value as TiltAdjustmentPlan
   return (
+    (plan.fieldWorkflowVersion === undefined ||
+      (plan.fieldWorkflowVersion === 1 && plan.analysisVersion === 2)) &&
+    (plan.analysisVersion === undefined
+      ? plan.analysisDate === undefined
+      : plan.analysisVersion === 2 &&
+        isAnalysisDate(plan.analysisDate) &&
+        Number(plan.analysisDate.slice(5, 7)) === plan.month) &&
     Number.isInteger(plan.month) &&
     plan.month >= 1 &&
     plan.month <= 12 &&
     typeof plan.fileName === 'string' &&
-    plan.fileName.length > 0 &&
+    (plan.fileName.trim().length > 0 || typeof plan.userRequest === 'string') &&
     plan.fileName.length <= 255 &&
+    (plan.userRequest === undefined ||
+      (typeof plan.userRequest === 'string' &&
+        plan.userRequest.trim().length > 0 &&
+        plan.userRequest.length <= MAX_TILT_REQUEST_LENGTH)) &&
     Number.isSafeInteger(plan.fileSize) &&
     plan.fileSize >= 0 &&
+    (plan.fileName.trim().length > 0 || plan.fileSize === 0) &&
     typeof plan.requestId === 'string' &&
     /^[a-zA-Z0-9-]{1,80}$/.test(plan.requestId)
   )

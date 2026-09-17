@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useFontScale } from '../../../settings/fontSize'
 import EChartCanvas from './EChartCanvas'
 import {
   FORECAST_DAY_COUNT,
@@ -35,24 +36,23 @@ function createTooltip(params: unknown, model: ForecastModel): string {
   const rows = entries
     .map(({ color, seriesName, value }) => {
       const device = model.forecasts.find(({ name }) => name === seriesName)
-      const measurements =
-        device?.voltageValues && device.currentValues
-          ? `<small style="display:block;text-align:right;color:#9eb4c3">${device.voltageValues[dataIndex]} V / ${device.currentValues[dataIndex]} A</small>`
-          : ''
-      return `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:22px;margin-top:5px"><span><i style="display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:50%;background:${color}"></i>${seriesName}</span><span><strong>${value}%</strong>${measurements}</span></div>`
+      return `<tr><td><i style="background:${color}"></i>${seriesName}</td><td><strong>${value}%</strong></td><td>${device?.voltageValues?.[dataIndex] ?? '--'}</td><td>${device?.currentValues?.[dataIndex] ?? '--'}</td></tr>`
     })
     .join('')
 
-  return `<div style="min-width:220px"><strong>${entries[0]?.axisValue ?? ''}</strong>${rows}</div>`
+  return `<strong class="forecast-tooltip-date">${entries[0]?.axisValue ?? ''}</strong><table><thead><tr><th>设备</th><th>状态指数</th><th>电压 (V)</th><th>电流 (A)</th></tr></thead><tbody>${rows}</tbody></table>`
 }
 
 export default function ForecastChart({
   model,
-  onRiskClick
+  onRiskClick,
+  embedded = false
 }: {
   model: ForecastModel
   onRiskClick: () => void
+  embedded?: boolean
 }): React.JSX.Element {
+  const fontScale = useFontScale()
   const visibleLabelIndexes = useMemo(
     () => createAxisLabelIndexes(model.dateLabels.length),
     [model.dateLabels.length]
@@ -64,15 +64,27 @@ export default function ForecastChart({
       animationEasing: 'linear',
       textStyle: {
         color: '#aeb3ba',
+        fontSize: 12 * fontScale,
         fontFamily: 'Inter, "PingFang SC", "Microsoft YaHei", sans-serif'
       },
-      grid: { left: 45, right: 20, top: 17, bottom: 29 },
+      grid: {
+        left: 45 * fontScale,
+        right: 20 * fontScale,
+        top: 17 * fontScale,
+        bottom: 29 * fontScale
+      },
       tooltip: {
         trigger: 'axis',
+        // Keep the full tooltip inside the chart, away from the panel's overflow clipping.
+        confine: true,
+        renderMode: 'html',
+        className: 'forecast-tooltip',
+        padding: [8, 10],
+        transitionDuration: 0,
         formatter: (params: unknown) => createTooltip(params, model),
         backgroundColor: 'rgba(4, 28, 47, 0.97)',
         borderColor: '#17658a',
-        textStyle: { color: '#dce9f1', fontSize: 10 },
+        textStyle: { color: '#dce9f1', fontSize: 10 * fontScale },
         axisPointer: { type: 'line', lineStyle: { color: 'rgba(115, 185, 211, 0.45)' } }
       },
       xAxis: {
@@ -85,7 +97,7 @@ export default function ForecastChart({
           interval: 0,
           hideOverlap: true,
           color: '#aaaeb5',
-          fontSize: 9,
+          fontSize: 9 * fontScale,
           formatter: (value: string, index: number) => (visibleLabelIndexes.has(index) ? value : '')
         },
         splitLine: { show: false }
@@ -96,10 +108,10 @@ export default function ForecastChart({
         min: 0,
         max: 100,
         interval: 20,
-        nameTextStyle: { color: '#b0b5bc', fontSize: 9, padding: [0, 0, 0, 1] },
+        nameTextStyle: { color: '#b0b5bc', fontSize: 9 * fontScale, padding: [0, 0, 0, 1] },
         axisLine: { show: true, lineStyle: { color: 'rgba(137, 154, 169, 0.48)' } },
         axisTick: { show: false },
-        axisLabel: { color: '#aaaeb5', fontSize: 9 },
+        axisLabel: { color: '#aaaeb5', fontSize: 9 * fontScale },
         splitLine: {
           show: true,
           lineStyle: { color: 'rgba(103, 127, 146, 0.2)', type: 'dashed' }
@@ -140,13 +152,17 @@ export default function ForecastChart({
         })
       ]
     }),
-    [model, visibleLabelIndexes]
+    [fontScale, model, visibleLabelIndexes]
   )
 
   return (
-    <section className="panel chart-panel">
+    <section className={`panel chart-panel${embedded ? ' chart-panel--embedded' : ''}`}>
       <div className="panel-heading chart-heading">
-        <h2>AI预测未来 1 个月设备状态</h2>
+        {embedded ? (
+          <span className="auxiliary-chart-description">未来 1 个月设备状态</span>
+        ) : (
+          <h2>AI预测未来 1 个月设备状态</h2>
+        )}
         {model.activeRisk && (
           <button className="forecast-risk-trigger" type="button" onClick={onRiskClick}>
             <i aria-hidden="true" />1 项预测风险

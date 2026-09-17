@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ServerEvent, SystemInfo, TelemetrySnapshot } from '../../shared/contracts'
 import { PlcSynchronizedClock } from '../../shared/plc-clock'
+import { PlatformSpeechPlayer } from './speech/PlatformSpeechPlayer'
 
 export type ConnectionState = 'connecting' | 'connected' | 'disconnected'
 
@@ -77,6 +78,10 @@ export function useRealtime(): {
       socket.addEventListener('message', (message) => {
         if (!active) return
         const event = JSON.parse(String(message.data)) as ServerEvent
+        if (event.type === 'speech.settings-changed') {
+          PlatformSpeechPlayer.syncSettings(serviceOrigin, event.payload.revision)
+          return
+        }
         if (event.type === 'system.ready') setSystemInfo(event.payload)
         if (event.type === 'telemetry.updated') acceptTelemetry(event.payload)
         if (event.type !== 'system.ready' && event.type !== 'telemetry.updated') {

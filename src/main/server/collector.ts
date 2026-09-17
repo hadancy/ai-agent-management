@@ -1,7 +1,7 @@
-import { createConnection, type Socket } from 'node:net'
 import type { CollectorMode, TelemetrySnapshot } from '../../shared/contracts'
-import { PLC_POINTS, type PlcPointId } from '../../shared/plc'
-import { decodePlcPoint } from './plc-values'
+import { PLC_ELECTRICAL_POINTS, type PlcPointId, type PlcPowerValues } from '../../shared/plc'
+import { decodePlcPoint, readPlcPowers } from './plc-values'
+import { PlcSession } from './plc-session'
 
 export interface DataCollector {
   readonly mode: CollectorMode
@@ -17,13 +17,6 @@ export interface PlcTcpCollectorConfig {
   reconnectDelayMs: number
   requestTimeoutMs: number
   registerAddressOffset?: number
-}
-
-type PendingRequest = {
-  transactionId: number
-  resolve: (registers: number[]) => void
-  reject: (error: Error) => void
-  timer: NodeJS.Timeout
 }
 
 const FIRST_REGISTER = 200
@@ -121,13 +114,11 @@ function createSimulatedPlcClock(
 
 export class PlcTcpCollector implements DataCollector {
   readonly mode = 'plc-tcp' as const
-  private socket?: Socket
+  readonly session: PlcSession
+  private generation = 0
   private timer?: NodeJS.Timeout
   private running = false
   private sequence = 0
-  private transactionId = 0
-  private receiveBuffer = Buffer.alloc(0)
-  private pendingRequest?: PendingRequest
   private onSnapshot?: (snapshot: TelemetrySnapshot) => void
   private lastDevices: TelemetrySnapshot['devices'] = DEVICE_DEFINITIONS.map((device) => ({
     ...device,
@@ -136,7 +127,17 @@ export class PlcTcpCollector implements DataCollector {
     status: 'offline' as const
   }))
 
-  constructor(private readonly config: PlcTcpCollectorConfig) {}
+  constructor(private readonly config: PlcTcpCollectorConfig) {
+    this.session = new PlcSession(
+      {
+        host: config.host,
+        port: config.port,
+        unitId: config.unitId,
+        registerAddressOffset: config.registerAddressOffset ?? 0
+      },
+      config.requestTimeoutMs
+    )
+  }
 
   start(onSnapshot: (snapshot: TelemetrySnapshot) => void): void {
     this.stop()
@@ -150,7 +151,8 @@ export class PlcTcpCollector implements DataCollector {
     if (this.timer) clearTimeout(this.timer)
     this.timer = undefined
     this.onSnapshot = undefined
-    this.destroySocket(new Error('PLC采集器已停止'))
+    this.generation++
+    this.session.close()
   }
 
   private schedule(delayMs: number): void {
@@ -160,17 +162,23 @@ export class PlcTcpCollector implements DataCollector {
   }
 
   private async collect(): Promise<void> {
+    const generation = this.generation
     try {
-      await this.ensureConnected()
-      const address = FIRST_REGISTER + (this.config.registerAddressOffset ?? 0)
-      const registers = await this.readHoldingRegisters(address, REGISTER_COUNT)
-      const snapshot = this.createSnapshot(registers)
+      const snapshot = await this.session.run(async (client) => {
+        const data = await client.read(FIRST_REGISTER, REGISTER_COUNT)
+        const powers = await readPlcPowers((register, count) => client.read(register, count))
+        const registers = Array.from({ length: REGISTER_COUNT }, (_, index) =>
+          data.readUInt16BE(index * 2)
+        )
+        return this.createSnapshot(registers, powers)
+      })
+      if (!this.running || generation !== this.generation) return
       this.lastDevices = snapshot.devices
       this.onSnapshot?.(snapshot)
       this.schedule(this.config.pollingIntervalMs)
     } catch (error) {
+      if (!this.running || generation !== this.generation) return
       const collectorError = error instanceof Error ? error.message : String(error)
-      this.destroySocket(error instanceof Error ? error : new Error(collectorError))
       this.sequence += 1
       this.onSnapshot?.({
         sequence: this.sequence,
@@ -184,7 +192,7 @@ export class PlcTcpCollector implements DataCollector {
     }
   }
 
-  private createSnapshot(registers: number[]): TelemetrySnapshot {
+  private createSnapshot(registers: number[], powers: PlcPowerValues): TelemetrySnapshot {
     if (registers.length !== REGISTER_COUNT) {
       throw new Error(`PLC返回 ${registers.length} 个寄存器，预期 ${REGISTER_COUNT} 个`)
     }
@@ -192,7 +200,7 @@ export class PlcTcpCollector implements DataCollector {
     const data = Buffer.alloc(REGISTER_COUNT * 2)
     registers.forEach((value, index) => data.writeUInt16BE(value, index * 2))
     const values = Object.fromEntries(
-      PLC_POINTS.map((point) => {
+      PLC_ELECTRICAL_POINTS.map((point) => {
         const value = decodePlcPoint(point, data, (point.register - FIRST_REGISTER) * 2)
         if (!Number.isFinite(value)) throw new Error(`${point.address} 返回了无效 ${point.type}`)
         return [point.id, value]
@@ -206,6 +214,7 @@ export class PlcTcpCollector implements DataCollector {
       collectorMode: this.mode,
       plcConnected: true,
       plcClock: decodePlcClock(registers),
+      powers,
       devices: [
         {
           ...DEVICE_DEFINITIONS[0],
@@ -240,162 +249,6 @@ export class PlcTcpCollector implements DataCollector {
       ]
     }
   }
-
-  private async ensureConnected(): Promise<void> {
-    if (this.socket && !this.socket.destroyed) return
-
-    await new Promise<void>((resolve, reject) => {
-      const socket = createConnection({ host: this.config.host, port: this.config.port })
-      const timer = setTimeout(() => {
-        cleanup()
-        socket.destroy()
-        reject(new Error(`连接 PLC ${this.config.host}:${this.config.port} 超时`))
-      }, this.config.requestTimeoutMs)
-      const cleanup = (): void => {
-        clearTimeout(timer)
-        socket.off('connect', handleConnect)
-        socket.off('error', handleConnectError)
-      }
-      const handleConnect = (): void => {
-        cleanup()
-        socket.setNoDelay(true)
-        socket.on('data', this.handleData)
-        socket.on('error', this.handleSocketError)
-        socket.on('close', this.handleSocketClose)
-        this.socket = socket
-        this.receiveBuffer = Buffer.alloc(0)
-        resolve()
-      }
-      const handleConnectError = (error: Error): void => {
-        cleanup()
-        socket.destroy()
-        reject(error)
-      }
-
-      socket.once('connect', handleConnect)
-      socket.once('error', handleConnectError)
-    })
-  }
-
-  private readHoldingRegisters(address: number, quantity: number): Promise<number[]> {
-    const socket = this.socket
-    if (!socket || socket.destroyed) return Promise.reject(new Error('PLC TCP 未连接'))
-    if (this.pendingRequest) return Promise.reject(new Error('已有未完成的 Modbus 请求'))
-
-    this.transactionId = (this.transactionId % 0xffff) + 1
-    const transactionId = this.transactionId
-    const request = Buffer.alloc(12)
-    request.writeUInt16BE(transactionId, 0)
-    request.writeUInt16BE(0, 2)
-    request.writeUInt16BE(6, 4)
-    request.writeUInt8(this.config.unitId, 6)
-    request.writeUInt8(3, 7)
-    request.writeUInt16BE(address, 8)
-    request.writeUInt16BE(quantity, 10)
-
-    return new Promise<number[]>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        if (this.pendingRequest?.transactionId !== transactionId) return
-        this.pendingRequest = undefined
-        const error = new Error(`读取 HR${address}–HR${address + quantity - 1} 超时`)
-        reject(error)
-        this.destroySocket(error)
-      }, this.config.requestTimeoutMs)
-
-      this.pendingRequest = { transactionId, resolve, reject, timer }
-      socket.write(request, (error) => {
-        if (!error || this.pendingRequest?.transactionId !== transactionId) return
-        clearTimeout(timer)
-        this.pendingRequest = undefined
-        reject(error)
-      })
-    })
-  }
-
-  private readonly handleData = (chunk: Buffer): void => {
-    this.receiveBuffer = Buffer.concat([this.receiveBuffer, chunk])
-
-    while (this.receiveBuffer.length >= 7) {
-      const protocolId = this.receiveBuffer.readUInt16BE(2)
-      const declaredLength = this.receiveBuffer.readUInt16BE(4)
-      if (protocolId !== 0 || declaredLength < 2 || declaredLength > 254) {
-        this.destroySocket(
-          new Error(`PLC返回无效MBAP头（protocol=${protocolId}, length=${declaredLength}）`)
-        )
-        return
-      }
-      const frameLength = 6 + declaredLength
-      if (this.receiveBuffer.length < frameLength) return
-      const frame = this.receiveBuffer.subarray(0, frameLength)
-      this.receiveBuffer = this.receiveBuffer.subarray(frameLength)
-      this.resolveResponse(frame)
-    }
-  }
-
-  private resolveResponse(frame: Buffer): void {
-    const pending = this.pendingRequest
-    if (!pending || frame.readUInt16BE(0) !== pending.transactionId) return
-    clearTimeout(pending.timer)
-    this.pendingRequest = undefined
-
-    const functionCode = frame.readUInt8(7)
-    if (functionCode === 0x83) {
-      if (frame.length < 9) {
-        pending.reject(new Error('PLC返回的Modbus异常响应长度无效'))
-        this.destroySocket(new Error('PLC返回的Modbus异常响应长度无效'))
-        return
-      }
-      pending.reject(new Error(`Modbus异常码 ${frame.readUInt8(8)}`))
-      return
-    }
-    if (functionCode !== 3) {
-      pending.reject(new Error(`PLC返回意外功能码 ${functionCode}`))
-      return
-    }
-    if (frame.length < 9) {
-      pending.reject(new Error('PLC返回的寄存器响应长度无效'))
-      this.destroySocket(new Error('PLC返回的寄存器响应长度无效'))
-      return
-    }
-
-    const byteCount = frame.readUInt8(8)
-    if (byteCount + 9 > frame.length || byteCount % 2 !== 0) {
-      pending.reject(new Error('PLC返回的寄存器数据长度无效'))
-      return
-    }
-
-    const registers: number[] = []
-    for (let offset = 0; offset < byteCount; offset += 2) {
-      registers.push(frame.readUInt16BE(9 + offset))
-    }
-    pending.resolve(registers)
-  }
-
-  private readonly handleSocketError = (): void => {
-    // The close event performs cleanup and the active request reports the error.
-  }
-
-  private readonly handleSocketClose = (): void => {
-    this.destroySocket(new Error('PLC TCP 连接已关闭'))
-  }
-
-  private destroySocket(error: Error): void {
-    const pending = this.pendingRequest
-    this.pendingRequest = undefined
-    if (pending) {
-      clearTimeout(pending.timer)
-      pending.reject(error)
-    }
-
-    const socket = this.socket
-    this.socket = undefined
-    this.receiveBuffer = Buffer.alloc(0)
-    if (!socket) return
-    socket.off('data', this.handleData)
-    socket.off('error', this.handleSocketError)
-    socket.off('close', this.handleSocketClose)
-    if (!socket.destroyed) socket.destroy()
-  }
 }
 
 export class SimulatedCollector implements DataCollector {
@@ -416,6 +269,15 @@ export class SimulatedCollector implements DataCollector {
         collectorMode: this.mode,
         plcConnected: true,
         plcClock: createSimulatedPlcClock(this.sequence, this.intervalMs),
+        powers: {
+          photovoltaicPower: 17,
+          storageRatedPower: 6,
+          primaryLoadPower: 3,
+          secondaryLoadPower: 5,
+          tertiaryLoadPower: 4,
+          totalLoadPower: 12,
+          renewableSupplyPower: 17
+        },
         devices: DEVICE_DEFINITIONS.map((device, index) => ({
           ...device,
           ...SIMULATION_DEVICE_VALUES[index],

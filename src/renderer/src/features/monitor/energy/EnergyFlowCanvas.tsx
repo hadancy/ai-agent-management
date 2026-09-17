@@ -12,6 +12,9 @@ import {
   Text
 } from 'react-konva'
 
+import { useFontScale } from '../../../settings/fontSize'
+import { usePlatformSpeech } from '../../../speech/usePlatformSpeech'
+
 import bulbUrl from '../../../assets/equipment-bulb-v4.png'
 import communicationUrl from '../../../assets/equipment-communication-v4.png'
 import converterUrl from '../../../assets/equipment-converter-v4.png'
@@ -22,11 +25,40 @@ import storageUrl from '../../../assets/equipment-storage-v4.png'
 import towerUrl from '../../../assets/equipment-tower-v4.png'
 import { createFlowPath, getFlowPosition, getFlowTrail, type FlowPath } from './flowAnimation'
 import '../styles/energy-flow.css'
+import type { TelemetrySnapshot } from '../../../../../shared/contracts'
+import { formatPower, getEnergyPowerReadings } from './powerReadings'
+import {
+  ARCHITECTURE_UPGRADE_MS,
+  ENERGY_ARCHITECTURES,
+  STORAGE_RATED_POWER_MW,
+  TRADITIONAL_POWERS,
+  type EnergyArchitecture
+} from './architecture'
+import { EfficiencyHighlight } from './ArchitectureScene'
 
 const SCENE_WIDTH = 1040
 const SCENE_HEIGHT = 620
 const SOLAR_CENTERS = [344, 456, 568, 680]
 const FONT_FAMILY = 'Inter, PingFang SC, Microsoft YaHei, sans-serif'
+
+// Canvas text cannot inherit rem sizes from the document.
+function EnergyText({
+  fontSize = 12,
+  fitWidth = false,
+  ...props
+}: Konva.TextConfig & { fitWidth?: boolean }): React.JSX.Element {
+  const fontScale = useFontScale()
+  const { text, width, fontFamily, fontStyle } = props
+  const scaledFontSize = fontSize * fontScale
+  const fittedFontSize = useMemo(() => {
+    if (!fitWidth || !width || !text) return scaledFontSize
+    const measure = new Konva.Text({ text, fontFamily, fontStyle, fontSize: scaledFontSize })
+    const naturalWidth = measure.measureSize(text).width
+    measure.destroy()
+    return naturalWidth > width ? (scaledFontSize * width) / naturalWidth : scaledFontSize
+  }, [fitWidth, width, text, fontFamily, fontStyle, scaledFontSize])
+  return <Text {...props} fontSize={fittedFontSize} />
+}
 
 export type EnergyRouteState = 'normal' | 'disconnected' | 'low'
 
@@ -314,7 +346,7 @@ function StatusBadge({
     <Group name={getDeviceStateNodeName(state)} x={x} y={y} listening={false}>
       <Rect width={width} height={22} cornerRadius={11} fill={style.fill} stroke={style.stroke} />
       <Circle x={12} y={11} radius={3} fill={style.dot} />
-      <Text
+      <EnergyText
         x={21}
         y={6}
         width={width - 26}
@@ -389,7 +421,7 @@ function SourceZone({
         stroke="rgba(68, 115, 146, 0.3)"
       />
       <Rect x={17} y={21} width={3} height={15} cornerRadius={2} fill={accent} />
-      <Text
+      <EnergyText
         x={29}
         y={20}
         text={title}
@@ -398,7 +430,7 @@ function SourceZone({
         fontSize={15}
         fontStyle="bold"
       />
-      <Text
+      <EnergyText
         x={width - 116}
         y={23}
         width={98}
@@ -450,7 +482,7 @@ function DeviceNode({
         crop={crop}
         state={state}
       />
-      <Text
+      <EnergyText
         x={-68}
         y={imageHeight + 6}
         width={136}
@@ -477,16 +509,16 @@ function SolarNode({
   state: EnergyRouteState
 }): React.JSX.Element {
   return (
-    <Group x={centerX - 46} y={79} listening={false}>
+    <Group name="energy-solar-node" x={centerX - 46} y={79} listening={false}>
       <Rect
         width={92}
-        height={105}
+        height={124}
         cornerRadius={8}
         fill="rgba(5, 21, 36, 0.55)"
         stroke="rgba(74, 122, 153, 0.3)"
       />
-      <DeviceAlertFrame state={state} width={92} height={105} cornerRadius={8} />
-      <Text
+      <DeviceAlertFrame state={state} width={92} height={124} cornerRadius={8} />
+      <EnergyText
         y={10}
         width={92}
         text={`光伏组串 ${index}`}
@@ -497,25 +529,69 @@ function SolarNode({
       />
       <CanvasImage
         image={image}
-        x={15}
-        y={29}
-        width={62}
-        height={57}
+        x={22}
+        y={40}
+        width={48}
+        height={44}
         crop={{ x: 18, y: 126, width: 348, height: 322 }}
         state={state}
       />
       <Group name={getDeviceStateNodeName(state)}>
-        <Circle x={23} y={94} radius={2.5} fill={FLOW_STATE_STYLE[state].color} />
-        <Text
-          x={31}
-          y={89}
-          width={57}
+        <Circle x={15} y={110} radius={2.5} fill={FLOW_STATE_STYLE[state].color} />
+        <EnergyText
+          x={23}
+          y={105}
+          width={65}
           text={STATUS_BADGE_STYLE[state].text}
           fill={STATUS_BADGE_STYLE[state].color}
           fontFamily={FONT_FAMILY}
           fontSize={9}
         />
       </Group>
+    </Group>
+  )
+}
+
+function TransformerIcon({ state }: { state: EnergyRouteState }): React.JSX.Element {
+  return (
+    <Group name={`${getDeviceStateNodeName(state)} energy-transformer-icon`} x={10} y={10}>
+      <Rect x={4} y={56} width={45} height={5} cornerRadius={1} fill="#142531" />
+      <Line points={[7, 24, 16, 18, 48, 18, 39, 24]} closed fill="#7b9cae" stroke="#9bb5c4" />
+      <Rect
+        x={7}
+        y={24}
+        width={32}
+        height={31}
+        cornerRadius={2}
+        fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+        fillLinearGradientEndPoint={{ x: 32, y: 31 }}
+        fillLinearGradientColorStops={[0, '#658396', 1, '#263d50']}
+        stroke="#8aafc3"
+        strokeWidth={1}
+      />
+      <Line points={[39, 24, 48, 18, 48, 49, 39, 55]} closed fill="#253e51" stroke="#668ca3" />
+      {[12, 18, 24, 30].map((x) => (
+        <Rect
+          key={x}
+          x={x}
+          y={29}
+          width={3}
+          height={21}
+          cornerRadius={1}
+          fill="#1d3445"
+          stroke="#7899ad"
+          strokeWidth={0.6}
+        />
+      ))}
+      {[15, 26, 37].map((x) => (
+        <Group key={x} x={x} y={3}>
+          <Rect x={-2} width={4} height={16} fill="#779fb1" />
+          {[3, 7, 11].map((y) => (
+            <Rect key={y} x={-4} y={y} width={8} height={2} cornerRadius={1} fill="#b4cfd8" />
+          ))}
+          <Circle y={1} radius={2} fill="#dbb778" />
+        </Group>
+      ))}
     </Group>
   )
 }
@@ -527,7 +603,10 @@ function ControlNode({
   title,
   subtitle,
   state,
-  image
+  image,
+  transformer = false,
+  power,
+  emphasizePower = false
 }: {
   centerX: number
   top?: number
@@ -536,6 +615,9 @@ function ControlNode({
   subtitle: string
   state: EnergyRouteState
   image?: HTMLImageElement
+  transformer?: boolean
+  power?: number
+  emphasizePower?: boolean
 }): React.JSX.Element {
   return (
     <Group x={centerX - width / 2} y={top} listening={false}>
@@ -552,7 +634,9 @@ function ControlNode({
         shadowOpacity={0.18}
       />
       <DeviceAlertFrame state={state} width={width} height={82} />
-      {image ? (
+      {transformer ? (
+        <TransformerIcon state={state} />
+      ) : image ? (
         <CanvasImage image={image} x={13} y={13} width={38} height={53} state={state} />
       ) : (
         <Group name={getDeviceStateNodeName(state)} x={15} y={22}>
@@ -568,9 +652,9 @@ function ControlNode({
           <Line points={[22, 26, 31, 26]} stroke="#a0d3e2" strokeWidth={1.5} />
         </Group>
       )}
-      <Text
+      <EnergyText
         x={64}
-        y={12}
+        y={emphasizePower ? 8 : 12}
         width={width - 72}
         text={title}
         fill="#e0ecf5"
@@ -578,26 +662,44 @@ function ControlNode({
         fontSize={12}
         fontStyle="bold"
       />
-      <Text
+      <EnergyText
         x={64}
-        y={31}
+        y={emphasizePower ? 26 : 31}
         width={width - 72}
         text={subtitle}
         fill="#789aaf"
         fontFamily={FONT_FAMILY}
-        fontSize={10}
+        fontSize={emphasizePower ? 9 : 10}
       />
-      <StatusBadge x={64} y={50} state={state} />
+      {emphasizePower && (
+        <EnergyText
+          name="energy-power energy-photovoltaic-power"
+          fitWidth
+          x={64}
+          y={38}
+          width={width - 72}
+          text={formatPower(power)}
+          fill="#7ee9d2"
+          fontFamily={FONT_FAMILY}
+          fontSize={14}
+          fontStyle="bold"
+        />
+      )}
+      <StatusBadge x={64} y={emphasizePower ? 59 : 50} state={state} />
     </Group>
   )
 }
 
 function StorageNode({
   image,
-  state
+  state,
+  power,
+  traditional
 }: {
   image?: HTMLImageElement
   state: EnergyRouteState
+  power?: number
+  traditional: boolean
 }): React.JSX.Element {
   return (
     <Group x={784} y={80} listening={false}>
@@ -610,17 +712,46 @@ function StorageNode({
       />
       <DeviceAlertFrame state={state} width={208} height={124} />
       <CanvasImage image={image} x={4} y={2} width={90} height={120} state={state} />
-      <Text
-        x={106}
-        y={36}
-        width={94}
+      <EnergyText
+        x={100}
+        y={12}
+        width={108}
         text="储能系统"
         fill="#e0ecf5"
         fontFamily={FONT_FAMILY}
         fontSize={13}
         fontStyle="bold"
       />
-      <StatusBadge x={106} y={62} state={state} />
+      <EnergyText
+        x={100}
+        y={36}
+        text={traditional ? '功率（示例）' : '实时功率（计算）'}
+        fill="#829fb3"
+        fontFamily={FONT_FAMILY}
+        fontSize={9}
+      />
+      <EnergyText
+        name="energy-power"
+        fitWidth
+        x={100}
+        y={53}
+        width={106}
+        text={formatPower(power, !traditional)}
+        fill="#7ee9d2"
+        fontFamily={FONT_FAMILY}
+        fontSize={14}
+        fontStyle="bold"
+      />
+      <EnergyText
+        name="energy-rated-power"
+        x={100}
+        y={78}
+        text={`满载 ${formatPower(STORAGE_RATED_POWER_MW)}`}
+        fill="#a9c7da"
+        fontFamily={FONT_FAMILY}
+        fontSize={10}
+      />
+      <StatusBadge x={100} y={98} width={100} state={state} />
     </Group>
   )
 }
@@ -630,13 +761,15 @@ function LoadNode({
   centerX,
   title,
   subtitle,
-  state
+  state,
+  power
 }: {
   image?: HTMLImageElement
   centerX: number
   title: string
   subtitle: string
   state: EnergyRouteState
+  power?: number
 }): React.JSX.Element {
   return (
     <Group x={centerX - 122} y={476} listening={false}>
@@ -660,22 +793,47 @@ function LoadNode({
         crop={{ x: 14, y: 52, width: 356, height: 327 }}
         state={state}
       />
-      <Text x={112} y={22} text={title} fill="#829fb3" fontFamily={FONT_FAMILY} fontSize={11} />
-      <Text
+      <EnergyText
         x={112}
-        y={43}
+        y={14}
+        text={title}
+        fill="#829fb3"
+        fontFamily={FONT_FAMILY}
+        fontSize={11}
+      />
+      <EnergyText
+        x={112}
+        y={34}
         text={subtitle}
         fill="#e0edf4"
         fontFamily={FONT_FAMILY}
-        fontSize={16}
+        fontSize={14}
         fontStyle="bold"
       />
-      <StatusBadge x={112} y={77} state={state} />
+      <EnergyText
+        name="energy-power"
+        fitWidth
+        x={112}
+        y={60}
+        width={126}
+        text={formatPower(power)}
+        fill="#7ee9d2"
+        fontFamily={FONT_FAMILY}
+        fontSize={17}
+        fontStyle="bold"
+      />
+      <StatusBadge x={112} y={91} width={114} state={state} />
     </Group>
   )
 }
 
-function BusLabel({ state }: { state: EnergyRouteState }): React.JSX.Element {
+function BusLabel({
+  state,
+  traditional
+}: {
+  state: EnergyRouteState
+  traditional: boolean
+}): React.JSX.Element {
   return (
     <Group x={408} y={379} listening={false}>
       <Rect
@@ -688,30 +846,53 @@ function BusLabel({ state }: { state: EnergyRouteState }): React.JSX.Element {
       />
       <DeviceAlertFrame state={state} width={208} height={42} cornerRadius={21} />
       <Circle x={22} y={21} radius={4} fill={FLOW_STATE_STYLE[state].color} />
-      <Text
+      <EnergyText
         x={35}
         y={14}
-        text="直流母线"
+        text={traditional ? '交流母线' : '直流母线'}
         fill="#e6f6f5"
         fontFamily={FONT_FAMILY}
         fontSize={14}
         fontStyle="bold"
       />
-      <Text x={160} y={15} text="DC" fill="#74b6bc" fontFamily={FONT_FAMILY} fontSize={12} />
+      <EnergyText
+        x={160}
+        y={15}
+        text={traditional ? 'AC' : 'DC'}
+        fill="#74b6bc"
+        fontFamily={FONT_FAMILY}
+        fontSize={12}
+      />
     </Group>
   )
 }
 
 export default function EnergyFlowCanvas({
   routeStates,
-  photovoltaicStates
+  photovoltaicStates,
+  telemetry,
+  online = true
 }: {
   routeStates?: Partial<EnergyRouteStates>
   photovoltaicStates?: EnergyRouteState[]
+  telemetry?: TelemetrySnapshot
+  online?: boolean
 }): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const wireLayerRef = useRef<Konva.Layer>(null)
   const deviceLayerRef = useRef<Konva.Layer>(null)
+  const [architecture, setArchitecture] = useState<EnergyArchitecture>('traditional')
+  const [upgrading, setUpgrading] = useState(false)
+  const [efficiencyVisible, setEfficiencyVisible] = useState(false)
+  const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const efficiencyButtonRef = useRef<HTMLButtonElement>(null)
+  const architectureButtonRef = useRef<HTMLButtonElement>(null)
+  const previousArchitecture = useRef(architecture)
+  const speech = usePlatformSpeech()
+  const traditional = architecture === 'traditional'
+  const nextArchitecture: EnergyArchitecture = traditional ? 'direct' : 'traditional'
+  const nextModeLabel = traditional ? '光储直柔模式' : '传统交流模式'
+  const presentation = ENERGY_ARCHITECTURES[architecture]
   const [motionEnabled, setMotionEnabled] = useState(
     () => !window.matchMedia('(prefers-reduced-motion: reduce)').matches
   )
@@ -729,12 +910,106 @@ export default function EnergyFlowCanvas({
   const fanImage = useCanvasImage(fanUrl)
   const motorImage = useCanvasImage(motorUrl)
   const states: EnergyRouteStates = { ...DEFAULT_ROUTE_STATES, ...routeStates }
-  const solarStates = Array.from(
-    { length: 4 },
-    (_, index) => photovoltaicStates?.[index] ?? states.photovoltaic
+  const readings = traditional
+    ? {
+        powers: TRADITIONAL_POWERS,
+        storage: TRADITIONAL_POWERS.storageRatedPower,
+        photovoltaic: []
+      }
+    : getEnergyPowerReadings(telemetry, online)
+  const { powers } = readings
+  const loadState = (power: number | undefined): EnergyRouteState =>
+    power === undefined || !Number.isFinite(power) || power <= 0 ? 'disconnected' : 'normal'
+  states.primaryLoad = loadState(powers.primaryLoadPower)
+  states.secondaryLoad = loadState(powers.secondaryLoadPower)
+  states.tertiaryLoad = loadState(powers.tertiaryLoadPower)
+  if (!online || telemetry?.plcConnected === false) {
+    for (const key of Object.keys(states) as Array<keyof EnergyRouteStates>)
+      states[key] = 'disconnected'
+  }
+  const solarStates = Array.from({ length: 4 }, (_, index) =>
+    !online || telemetry?.plcConnected === false
+      ? 'disconnected'
+      : (photovoltaicStates?.[index] ?? states.photovoltaic)
   )
+  const directionalState = (
+    power: number | undefined,
+    forward: boolean,
+    state: EnergyRouteState
+  ): EnergyRouteState =>
+    power !== undefined && Number.isFinite(power) && (forward ? power > 0 : power < 0)
+      ? state
+      : 'disconnected'
+  // The PLC convention is positive for charging and negative for discharging.
+  const storageDischargeState = directionalState(readings.storage, false, states.storage)
+  const storageChargeState = traditional
+    ? states.storage
+    : directionalState(readings.storage, true, states.storage)
+  // No grid direction register is supplied. Infer the net exchange from live power balance.
+  // Round to the displayed MW precision to avoid a false direction from floating-point residue.
+  const gridPower =
+    powers.totalLoadPower !== undefined && powers.renewableSupplyPower !== undefined
+      ? Number((powers.totalLoadPower - powers.renewableSupplyPower).toFixed(6))
+      : undefined
+  const gridImportState = traditional ? states.grid : directionalState(gridPower, true, states.grid)
+  const gridExportState = directionalState(gridPower, false, states.grid)
+  const converterImportState = traditional
+    ? states.converter
+    : gridImportState === 'disconnected'
+      ? 'disconnected'
+      : states.converter
+  const converterExportState =
+    gridExportState === 'disconnected' ? 'disconnected' : states.converter
   const stateValues = Object.values(states)
-  const accessibilitySummary = `实时能源流向：${stateValues.filter((state) => state === 'normal').length}路正常，${stateValues.filter((state) => state === 'disconnected').length}路断开或无输出，${stateValues.filter((state) => state === 'low').length}路电压或电流异常`
+  const accessibilitySummary =
+    (traditional
+      ? `${presentation.title}：固定示例，电网经变压器、光伏经并网逆变器接入交流母线，供给交流灯、交流风扇和交流电机；储能经双向变流器充电。`
+      : `${presentation.title}：同一套电网接入、光伏组串和储能设备，光伏经DC/DC变换接入直流母线，直接供给直流灯、直流风扇和直流电机。`) +
+    `${stateValues.filter((state) => state === 'normal').length}路正常，${stateValues.filter((state) => state === 'disconnected').length}路断开或无输出，${stateValues.filter((state) => state === 'low').length}路电压或电流异常。` +
+    `光伏总功率 ${formatPower(powers.photovoltaicPower)}，储能${traditional ? '示例' : '实时'}功率 ${formatPower(readings.storage, !traditional)}，储能满载功率 ${formatPower(STORAGE_RATED_POWER_MW)}` +
+    `，一级负载 ${formatPower(powers.primaryLoadPower)}，二级负载 ${formatPower(powers.secondaryLoadPower)}，三级负载 ${formatPower(powers.tertiaryLoadPower)}，负载总功率 ${formatPower(powers.totalLoadPower)}，新能源供电总功率 ${formatPower(powers.renewableSupplyPower)}`
+
+  useEffect(
+    () => () => {
+      if (upgradeTimer.current !== null) clearTimeout(upgradeTimer.current)
+    },
+    []
+  )
+
+  useEffect(() => {
+    if (previousArchitecture.current !== architecture) {
+      previousArchitecture.current = architecture
+      architectureButtonRef.current?.focus()
+    }
+  }, [architecture])
+
+  const closeEfficiency = (): void => {
+    setEfficiencyVisible(false)
+    speech.stop()
+    efficiencyButtonRef.current?.focus()
+  }
+
+  const toggleEfficiency = (): void => {
+    if (upgradeTimer.current !== null) return
+    if (efficiencyVisible) {
+      closeEfficiency()
+      return
+    }
+    setEfficiencyVisible(true)
+    speech.speak(presentation.speech, true)
+  }
+
+  const upgradeArchitecture = (): void => {
+    if (upgradeTimer.current !== null) return
+    speech.stop()
+    setEfficiencyVisible(false)
+    setUpgrading(true)
+    upgradeTimer.current = setTimeout(() => {
+      upgradeTimer.current = null
+      setArchitecture(nextArchitecture)
+      setUpgrading(false)
+    }, ARCHITECTURE_UPGRADE_MS)
+  }
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -814,15 +1089,22 @@ export default function EnergyFlowCanvas({
   }, [sceneSize])
 
   return (
-    <section className="panel energy-panel energy-panel--konva" aria-labelledby="energy-flow-title">
+    <section
+      className={`panel energy-panel energy-panel--konva${motionEnabled ? '' : ' energy-panel--paused'}`}
+      aria-labelledby="energy-flow-title"
+      data-architecture={architecture}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && efficiencyVisible) closeEfficiency()
+      }}
+    >
       <header className="energy-heading">
         <div className="energy-heading__title">
           <span className="energy-heading__mark" aria-hidden="true">
             ϟ
           </span>
           <div>
-            <h2 id="energy-flow-title">实时能源流向</h2>
-            <p>光 · 储 · 直 · 柔协同拓扑</p>
+            <h2 id="energy-flow-title">{presentation.title}</h2>
+            <p>{presentation.caption}</p>
           </div>
         </div>
         <div className="energy-legend" aria-label="能源流向状态图例">
@@ -836,200 +1118,318 @@ export default function EnergyFlowCanvas({
       </header>
       <div
         ref={containerRef}
-        className="konva-energy-canvas"
-        role="img"
-        aria-label={accessibilitySummary}
+        className={`konva-energy-canvas${upgrading ? ' konva-energy-canvas--upgrading' : ''}`}
+        aria-busy={upgrading}
       >
-        <Stage width={sceneSize.width} height={sceneSize.height} listening={false}>
-          <Layer
-            x={sceneTransform.x}
-            y={sceneTransform.y}
-            scaleX={sceneTransform.scale}
-            scaleY={sceneTransform.scale}
-            listening={false}
-          >
-            <SourceZone x={16} width={248} title="电网接入" caption="AC / DC" accent="#5eb9ef" />
-            <SourceZone x={280} width={456} title="光伏发电" caption="4 路组串" accent="#43d6a0" />
-            <SourceZone x={752} width={272} title="储能调节" caption="双向变换" accent="#a3a1ed" />
-            <Rect
-              x={70}
-              y={366}
-              width={904}
-              height={68}
-              cornerRadius={12}
-              fill="rgba(29, 106, 99, 0.07)"
-              stroke="rgba(64, 152, 139, 0.14)"
-            />
-            <Text
-              x={22}
-              y={452}
-              text="负载分配"
-              fill="#7e9eb3"
-              fontFamily={FONT_FAMILY}
-              fontSize={11}
-            />
-          </Layer>
-          <Layer
-            ref={wireLayerRef}
-            x={sceneTransform.x}
-            y={sceneTransform.y}
-            scaleX={sceneTransform.scale}
-            scaleY={sceneTransform.scale}
-            listening={false}
-          >
-            <FlowWire points={[111, 128, 169, 128]} state={states.grid} />
-            <FlowWire points={[199, 187, 199, 211, 140, 211, 140, 238]} state={states.grid} />
-            <FlowWire points={[140, 320, 140, 400]} state={states.converter} />
-            {SOLAR_CENTERS.map((centerX, index) => (
+        <div role="img" aria-label={accessibilitySummary}>
+          <Stage width={sceneSize.width} height={sceneSize.height} listening={false}>
+            <Layer
+              x={sceneTransform.x}
+              y={sceneTransform.y}
+              scaleX={sceneTransform.scale}
+              scaleY={sceneTransform.scale}
+              listening={false}
+            >
+              <SourceZone
+                x={16}
+                width={248}
+                title="电网接入"
+                caption={traditional ? '交流接入' : 'AC / DC'}
+                accent="#5eb9ef"
+              />
+              <SourceZone
+                x={280}
+                width={456}
+                title="光伏发电"
+                caption="4 路组串"
+                accent="#43d6a0"
+              />
+              <SourceZone
+                x={752}
+                width={272}
+                title="储能调节"
+                caption="双向变换"
+                accent="#a3a1ed"
+              />
+              <Rect
+                x={70}
+                y={366}
+                width={904}
+                height={68}
+                cornerRadius={12}
+                fill="rgba(29, 106, 99, 0.07)"
+                stroke="rgba(64, 152, 139, 0.14)"
+              />
+              <EnergyText
+                x={traditional ? 32 : 22}
+                y={452}
+                text={traditional ? '负载侧 AC / DC' : '负载分配'}
+                fill="#7e9eb3"
+                fontFamily={FONT_FAMILY}
+                fontSize={11}
+              />
+              {efficiencyVisible && <EfficiencyHighlight architecture={architecture} />}
+            </Layer>
+            <Layer
+              ref={wireLayerRef}
+              x={sceneTransform.x}
+              y={sceneTransform.y}
+              scaleX={sceneTransform.scale}
+              scaleY={sceneTransform.scale}
+              listening={false}
+            >
+              <FlowWire points={[111, 128, 169, 128]} state={gridImportState} />
+              <FlowWire points={[199, 187, 199, 211, 140, 211, 140, 238]} state={gridImportState} />
+              <FlowWire points={[140, 320, 140, 400]} state={converterImportState} />
+              {!traditional && (
+                <>
+                  <FlowWire points={[169, 140, 111, 140]} state={gridExportState} />
+                  <FlowWire
+                    points={[152, 238, 152, 223, 211, 223, 211, 187]}
+                    state={gridExportState}
+                  />
+                  <FlowWire points={[152, 400, 152, 320]} state={converterExportState} />
+                </>
+              )}
+              {SOLAR_CENTERS.map((centerX, index) => (
+                <FlowWire
+                  key={centerX}
+                  points={[centerX, 203, centerX, 218]}
+                  state={solarStates[index]}
+                />
+              ))}
+              <FlowWire points={[344, 218, 508, 218]} state={states.photovoltaic} arrow={false} />
+              <FlowWire points={[680, 218, 508, 218]} state={states.photovoltaic} arrow={false} />
+              <FlowWire points={[508, 218, 508, 238]} state={states.photovoltaic} />
+              <FlowWire points={[508, 320, 508, 370]} state={states.photovoltaic} />
+              <FlowWire points={[508, 370, 508, 400]} state={states.photovoltaic} arrow={false} />
+              {!traditional && (
+                <FlowWire points={[876, 204, 876, 258]} state={storageDischargeState} />
+              )}
+              <FlowWire points={[900, 258, 900, 204]} state={storageChargeState} />
+              {!traditional && (
+                <>
+                  <FlowWire points={[880, 340, 880, 390]} state={storageDischargeState} />
+                  <FlowWire
+                    points={[880, 390, 880, 400]}
+                    state={storageDischargeState}
+                    arrow={false}
+                  />
+                </>
+              )}
+              <FlowWire points={[896, 400, 896, 340]} state={storageChargeState} />
               <FlowWire
-                key={centerX}
-                points={[centerX, 184, centerX, 209]}
-                state={solarStates[index]}
+                points={[110, 400, 934, 400]}
+                state={states.dcBus}
+                arrow={false}
+                width={4}
+                speed="slow"
               />
-            ))}
-            <FlowWire points={[344, 209, 508, 209]} state={states.photovoltaic} arrow={false} />
-            <FlowWire points={[680, 209, 508, 209]} state={states.photovoltaic} arrow={false} />
-            <FlowWire points={[508, 209, 508, 238]} state={states.photovoltaic} />
-            <FlowWire points={[508, 320, 508, 370]} state={states.photovoltaic} />
-            <FlowWire points={[508, 370, 508, 400]} state={states.photovoltaic} arrow={false} />
-            <FlowWire points={[876, 204, 876, 258]} state={states.storage} />
-            <FlowWire points={[900, 258, 900, 204]} state={states.storage} />
-            <FlowWire points={[880, 340, 880, 390]} state={states.storage} />
-            <FlowWire points={[880, 390, 880, 400]} state={states.storage} arrow={false} />
-            <FlowWire points={[896, 400, 896, 340]} state={states.storage} />
-            <FlowWire
-              points={[110, 400, 934, 400]}
-              state={states.dcBus}
-              arrow={false}
-              width={4}
-              speed="slow"
-            />
-            <FlowWire points={[212, 400, 212, 476]} state={states.primaryLoad} />
-            <FlowWire points={[520, 400, 520, 476]} state={states.secondaryLoad} />
-            <FlowWire points={[828, 400, 828, 476]} state={states.tertiaryLoad} />
-            {[140, 212, 508, 520, 828, 880, 896].map((x) => (
-              <Circle
-                key={x}
-                x={x}
-                y={400}
-                radius={3.5}
-                fill="#092335"
-                stroke={FLOW_STATE_STYLE[states.dcBus].color}
-                strokeWidth={1.5}
+              <FlowWire points={[212, 400, 212, 476]} state={states.primaryLoad} />
+              <FlowWire points={[520, 400, 520, 476]} state={states.secondaryLoad} />
+              <FlowWire points={[828, 400, 828, 476]} state={states.tertiaryLoad} />
+              {[
+                140,
+                ...(traditional ? [] : [152]),
+                212,
+                508,
+                520,
+                828,
+                ...(traditional ? [] : [880]),
+                896
+              ].map((x) => (
+                <Circle
+                  key={x}
+                  x={x}
+                  y={400}
+                  radius={3.5}
+                  fill="#092335"
+                  stroke={FLOW_STATE_STYLE[states.dcBus].color}
+                  strokeWidth={1.5}
+                />
+              ))}
+            </Layer>
+            <Layer
+              ref={deviceLayerRef}
+              x={sceneTransform.x}
+              y={sceneTransform.y}
+              scaleX={sceneTransform.scale}
+              scaleY={sceneTransform.scale}
+              listening={false}
+            >
+              <DeviceNode
+                image={towerImage}
+                centerX={80}
+                top={79}
+                imageWidth={64}
+                imageHeight={96}
+                title="电网"
+                state={states.grid}
               />
-            ))}
-          </Layer>
-          <Layer
-            ref={deviceLayerRef}
-            x={sceneTransform.x}
-            y={sceneTransform.y}
-            scaleX={sceneTransform.scale}
-            scaleY={sceneTransform.scale}
-            listening={false}
+              <DeviceNode
+                image={communicationImage}
+                centerX={199}
+                top={94}
+                imageWidth={52}
+                imageHeight={62}
+                title="电网通信接口"
+                state={states.grid}
+              />
+              <ControlNode
+                centerX={140}
+                width={204}
+                title={traditional ? '变压器' : '双向变流器'}
+                subtitle={traditional ? '交流接入' : 'AC / DC'}
+                image={converterImage}
+                transformer={traditional}
+                state={states.converter}
+              />
+              {SOLAR_CENTERS.map((centerX, index) => (
+                <SolarNode
+                  key={centerX}
+                  image={solarImage}
+                  centerX={centerX}
+                  index={index + 1}
+                  state={solarStates[index]}
+                />
+              ))}
+              <ControlNode
+                centerX={508}
+                width={208}
+                title={traditional ? '并网逆变器' : '光伏变换器'}
+                subtitle={
+                  traditional ? `总功率 ${formatPower(powers.photovoltaicPower)}` : '总功率'
+                }
+                power={powers.photovoltaicPower}
+                emphasizePower={!traditional}
+                state={states.photovoltaic}
+              />
+              <StorageNode
+                image={storageImage}
+                state={states.storage}
+                power={readings.storage}
+                traditional={traditional}
+              />
+              {!traditional && (
+                <EnergyText
+                  x={826}
+                  y={225}
+                  width={38}
+                  text="放电"
+                  align="right"
+                  fill={FLOW_STATE_STYLE[storageDischargeState].color}
+                  fontFamily={FONT_FAMILY}
+                  fontSize={11}
+                />
+              )}
+              <EnergyText
+                x={912}
+                y={225}
+                width={38}
+                text="充电"
+                fill={FLOW_STATE_STYLE[storageChargeState].color}
+                fontFamily={FONT_FAMILY}
+                fontSize={11}
+              />
+              <ControlNode
+                centerX={888}
+                top={258}
+                width={208}
+                title={traditional ? '双向变流器' : '储能变换器'}
+                subtitle={traditional ? 'AC/DC 充放电' : 'DC/DC 充放电'}
+                state={states.storage}
+              />
+              <BusLabel state={states.dcBus} traditional={traditional} />
+              <EnergyText
+                x={420}
+                y={330}
+                width={176}
+                text={traditional ? 'DC → AC' : 'DC → DC'}
+                align="center"
+                fill="#87b6c5"
+                fontFamily={FONT_FAMILY}
+                fontSize={11}
+              />
+              <EnergyText
+                name="energy-power"
+                fitWidth
+                x={184}
+                y={368}
+                width={214}
+                text={`新能源供电 ${formatPower(powers.renewableSupplyPower)}`}
+                fill="#a8dcd4"
+                fontFamily={FONT_FAMILY}
+                fontSize={12}
+              />
+              <EnergyText
+                name="energy-power"
+                fitWidth
+                x={650}
+                y={368}
+                width={214}
+                text={`负载总功率 ${formatPower(powers.totalLoadPower)}`}
+                fill="#a8dcd4"
+                fontFamily={FONT_FAMILY}
+                fontSize={12}
+              />
+              <LoadNode
+                image={bulbImage}
+                centerX={212}
+                title="一级负载"
+                subtitle={traditional ? '交流灯' : '直流灯'}
+                state={states.primaryLoad}
+                power={powers.primaryLoadPower}
+              />
+              <LoadNode
+                image={fanImage}
+                centerX={520}
+                title="二级负载"
+                subtitle={traditional ? '交流风扇' : '直流风扇'}
+                state={states.secondaryLoad}
+                power={powers.secondaryLoadPower}
+              />
+              <LoadNode
+                image={motorImage}
+                centerX={828}
+                title="三级负载"
+                subtitle={traditional ? '交流电机' : '直流电机'}
+                state={states.tertiaryLoad}
+                power={powers.tertiaryLoadPower}
+              />
+            </Layer>
+          </Stage>
+        </div>
+        {efficiencyVisible && (
+          <div
+            className={`energy-efficiency-callout energy-efficiency-callout--${architecture}`}
+            style={{
+              left: sceneTransform.x + 520 * sceneTransform.scale,
+              top: sceneTransform.y + 427 * sceneTransform.scale,
+              transform: `translateX(-50%) scale(${sceneTransform.scale})`
+            }}
+            role="status"
           >
-            <DeviceNode
-              image={towerImage}
-              centerX={80}
-              top={79}
-              imageWidth={64}
-              imageHeight={96}
-              title="电网"
-              state={states.grid}
-            />
-            <DeviceNode
-              image={communicationImage}
-              centerX={199}
-              top={94}
-              imageWidth={52}
-              imageHeight={62}
-              title="电网通信接口"
-              state={states.grid}
-            />
-            <ControlNode
-              centerX={140}
-              width={204}
-              title="双向变流器"
-              subtitle="AC / DC"
-              image={converterImage}
-              state={states.converter}
-            />
-            {SOLAR_CENTERS.map((centerX, index) => (
-              <SolarNode
-                key={centerX}
-                image={solarImage}
-                centerX={centerX}
-                index={index + 1}
-                state={solarStates[index]}
-              />
-            ))}
-            <ControlNode
-              centerX={508}
-              width={208}
-              title="光伏汇流"
-              subtitle="DC / DC"
-              state={states.photovoltaic}
-            />
-            <StorageNode image={storageImage} state={states.storage} />
-            <Text
-              x={826}
-              y={225}
-              width={38}
-              text="放电"
-              align="right"
-              fill="#8aaabb"
-              fontFamily={FONT_FAMILY}
-              fontSize={11}
-            />
-            <Text
-              x={912}
-              y={225}
-              width={38}
-              text="充电"
-              fill="#8aaabb"
-              fontFamily={FONT_FAMILY}
-              fontSize={11}
-            />
-            <ControlNode
-              centerX={888}
-              top={258}
-              width={208}
-              title="双向 DC/DC"
-              subtitle="储能充放电"
-              state={states.storage}
-            />
-            <BusLabel state={states.dcBus} />
-            <LoadNode
-              image={bulbImage}
-              centerX={212}
-              title="一级负载"
-              subtitle="直流灯"
-              state={states.primaryLoad}
-            />
-            <LoadNode
-              image={fanImage}
-              centerX={520}
-              title="二级负载"
-              subtitle="直流风扇"
-              state={states.secondaryLoad}
-            />
-            <LoadNode
-              image={motorImage}
-              centerX={828}
-              title="三级负载"
-              subtitle="直流电机"
-              state={states.tertiaryLoad}
-            />
-          </Layer>
-        </Stage>
+            <strong>{presentation.efficiency}</strong>
+          </div>
+        )}
+        {upgrading && (
+          <div className="energy-upgrade-overlay" role="status">
+            <span className="energy-upgrade-spinner" aria-hidden="true">
+              ↻
+            </span>
+            <strong>正在切换为{nextModeLabel}…</strong>
+            <span>{traditional ? '交流配电 → 直流直供' : '直流直供 → 交流配电'}</span>
+          </div>
+        )}
       </div>
       <footer className="energy-footer">
-        <span>
-          <i aria-hidden="true" /> 箭头表示能量传输方向
+        <span className="energy-footer__note">
+          <i aria-hidden="true" />
+          {traditional
+            ? '传统交流模式功率为固定示例值'
+            : '新能源供电：光伏 + 储能放电 − 储能充电 · 正值充电，负值放电'}
         </span>
         <div className="energy-footer__actions">
-          <span>
-            4 路光伏接入 <b /> 3 级直流负载
-          </span>
           <button
             type="button"
             className="energy-motion-control"
@@ -1039,6 +1439,39 @@ export default function EnergyFlowCanvas({
           >
             <span aria-hidden="true">{motionEnabled ? 'Ⅱ' : '▷'}</span>
             {motionEnabled ? '智能设计' : '播放动效'}
+          </button>
+          <button
+            ref={efficiencyButtonRef}
+            type="button"
+            className="energy-efficiency-button"
+            onClick={toggleEfficiency}
+            aria-pressed={efficiencyVisible}
+            title={
+              speech.status === 'blocked'
+                ? '语音播放被拦截，点击收起，再次点击重试'
+                : speech.status === 'error'
+                  ? `${speech.message}，点击收起，再次点击重试`
+                  : efficiencyVisible
+                    ? '点击或按 Esc 收起高亮并停止播报'
+                    : '点击显示效率高亮并播报'
+            }
+            disabled={upgrading}
+          >
+            <span aria-hidden="true">%</span>综合变换效率
+          </button>
+          <button
+            ref={architectureButtonRef}
+            type="button"
+            className="energy-upgrade-button"
+            onClick={upgradeArchitecture}
+            disabled={upgrading}
+            aria-label={`${upgrading ? '正在切换为' : '切换为'}${nextModeLabel}`}
+            title={`切换为${nextModeLabel}`}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 7v5h-5M4 17v-5h5M6.3 6.3A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.7 5.7" />
+            </svg>
+            {upgrading ? '切换中' : traditional ? '更新架构' : '还原架构'}
           </button>
         </div>
       </footer>

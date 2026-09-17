@@ -43,7 +43,7 @@
 }
 
 .delete-order-dialog__icon span {
-  font-size: 26px;
+  font-size: 1.625rem;
   font-weight: 700;
   line-height: 1;
 }
@@ -57,14 +57,14 @@
   display: block;
   margin-bottom: 4px;
   color: #ff8976;
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 0.14em;
 }
 
 .delete-order-dialog__heading h2 {
   margin: 0;
   color: #f5f8fa;
-  font-size: 21px;
+  font-size: 1.3125rem;
   font-weight: 600;
 }
 
@@ -76,7 +76,7 @@
   border-radius: 5px;
   color: #ffb4a8;
   background: rgba(178, 50, 35, 0.14);
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.03em;
 }
@@ -84,7 +84,7 @@
 .delete-order-dialog > p {
   margin: 17px 0 13px;
   color: #b8c8d1;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.7;
 }
 
@@ -103,12 +103,12 @@
 .delete-order-dialog__impact span {
   margin-bottom: 5px;
   color: #718fa1;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .delete-order-dialog__impact strong {
   color: #c9d6dd;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
 }
 
@@ -123,7 +123,7 @@
   height: 38px;
   border-radius: 5px;
   color: #dce7ed;
-  font-size: 12px;
+  font-size: 0.75rem;
   cursor: pointer;
 }
 

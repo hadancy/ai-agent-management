@@ -82,14 +82,14 @@
 .clear-chat-dialog h2 {
   margin: 0;
   color: #eef2fc;
-  font-size: 21px;
+  font-size: 1.3125rem;
   font-weight: 550;
 }
 
 .clear-chat-dialog p {
   margin: 12px 0 26px;
   color: #a7b5ce;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.8;
 }
 
@@ -104,7 +104,7 @@
   height: 38px;
   padding: 0 18px;
   border-radius: 7px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .clear-chat-dialog__cancel {

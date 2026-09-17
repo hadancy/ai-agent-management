@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Fastify from 'fastify'
@@ -14,11 +14,15 @@ import {
 } from '../src/main/server/qwen-speech'
 import { SpeechService } from '../src/main/server/speech-service'
 import { registerSpeechRoutes } from '../src/main/server/speech'
-import { resolveSpeechApiHost, type SpeechSettingsInput } from '../src/shared/speech-settings'
+import {
+  DEFAULT_SPEECH_VOICE,
+  resolveSpeechApiHost,
+  type SpeechSettingsInput
+} from '../src/shared/speech-settings'
 
 const key = 'sk-test-credential-for-tests-only'
 const host = 'ws-test123.cn-beijing.maas.aliyuncs.com'
-const config = { apiKey: key, region: 'beijing' as const, voice: 'Cherry' }
+const config = { apiKey: key, region: 'beijing' as const, voice: DEFAULT_SPEECH_VOICE }
 const settings: SpeechSettingsInput = { ...config, mode: 'qwen' }
 const signedUrl = 'http://dashscope-result.oss-cn-wulanchabu.aliyuncs.com/audio.wav?Signature=test'
 
@@ -101,7 +105,12 @@ async function run(): Promise<void> {
   for (const call of requests) {
     assert.ok(call.url.startsWith(`https://${host}/api/v1/`))
     assert.equal(new Headers(call.init?.headers).get('Authorization'), `Bearer ${key}`)
-    assert.equal(JSON.parse(String(call.init?.body)).model, 'qwen3-tts-flash')
+    const body = JSON.parse(String(call.init?.body))
+    assert.equal(body.model, 'qwen3-tts-instruct-flash')
+    assert.equal(body.input.voice, 'Elias')
+    assert.equal(body.input.language_type, 'Chinese')
+    assert.match(body.input.instructions, /正式.*中性.*不带情感色彩.*音调平直/)
+    assert.equal(body.input.optimize_instructions, false, 'keep neutral instructions unchanged')
     assert.equal(call.init?.redirect, 'error')
   }
   for (const call of calls.filter((call) => call.init?.method !== 'POST')) {
@@ -178,12 +187,69 @@ async function run(): Promise<void> {
     const store = new SpeechSettingsStore(filename, secrets, '')
     await store.load()
     assert.equal(store.status().mode, 'offline')
+    assert.equal(store.status().voice, 'Elias')
     await assert.rejects(store.save({ ...settings, apiKey: '' }), /填写/)
     await store.save(settings)
     const saved = await readFile(filename, 'utf8')
     assert.ok(!saved.includes(key) && !Object.hasOwn(JSON.parse(saved), 'apiKey'))
     assert.ok(!JSON.stringify(store.status()).includes(key))
     if (process.platform !== 'win32') assert.equal((await stat(filename)).mode & 0o777, 0o600)
+
+    const legacyFilename = join(directory, 'legacy.json')
+    const legacy = { ...JSON.parse(saved), voice: 'Cherry', apiHost: host }
+    delete legacy.voiceDefaultsVersion
+    await writeFile(legacyFilename, JSON.stringify(legacy))
+    const migrated = new SpeechSettingsStore(legacyFilename, secrets, '')
+    await migrated.load()
+    assert.equal(
+      migrated.status().voice,
+      'Elias',
+      'existing Cherry defaults adopt the neutral voice'
+    )
+    assert.equal(migrated.status().mode, 'qwen')
+    assert.equal(migrated.status().apiHost, host)
+    assert.equal(migrated.snapshot().apiKey, key, 'migration retains credentials')
+    await migrated.save({ ...migrated.snapshot(), apiKey: '' })
+    const migratedAgain = new SpeechSettingsStore(legacyFilename, secrets, '')
+    await migratedAgain.load()
+    assert.equal(
+      migratedAgain.status().voice,
+      'Elias',
+      'neutral default survives saving and restart'
+    )
+    await migratedAgain.save({ ...migratedAgain.snapshot(), voice: 'Cherry', apiKey: '' })
+    const explicitChoice = new SpeechSettingsStore(legacyFilename, secrets, '')
+    await explicitChoice.load()
+    assert.equal(
+      explicitChoice.status().voice,
+      'Cherry',
+      'later explicit voice choices are retained'
+    )
+    await writeFile(legacyFilename, JSON.stringify({ ...legacy, voice: 'Serena' }))
+    const custom = new SpeechSettingsStore(legacyFilename, secrets, '')
+    await custom.load()
+    assert.equal(custom.status().voice, 'Serena', 'migration preserves other custom voices')
+
+    await writeFile(
+      legacyFilename,
+      JSON.stringify({ ...legacy, voice: 'Neil', voiceDefaultsVersion: 1 })
+    )
+    const previousDefault = new SpeechSettingsStore(legacyFilename, secrets, '')
+    await previousDefault.load()
+    assert.equal(
+      previousDefault.status().voice,
+      'Elias',
+      'previous news voice adopts the neutral default'
+    )
+    await previousDefault.save({ ...previousDefault.snapshot(), voice: 'Neil', apiKey: '' })
+    const explicitNewsVoice = new SpeechSettingsStore(legacyFilename, secrets, '')
+    await explicitNewsVoice.load()
+    assert.equal(
+      explicitNewsVoice.status().voice,
+      'Neil',
+      'new explicit voice choices survive restart'
+    )
+
     const loaded = new SpeechSettingsStore(filename, secrets, '')
     await loaded.load()
     assert.equal(loaded.snapshot().apiKey, key)
@@ -261,6 +327,50 @@ async function run(): Promise<void> {
     assert.equal((await strict.test()).ok, false)
     assert.equal(offlineCalls, 0, 'the cloud test never reports offline speech as cloud success')
 
+    const modelRequests: { model: string; input: Record<string, unknown> }[] = []
+    const compatible = new SpeechService(
+      store,
+      async () => {
+        throw new Error('An allowed Qwen model must not fall back to offline speech')
+      },
+      async (_url, init) => {
+        if (init?.method !== 'POST') return audioResponse()
+        const body = JSON.parse(String(init.body))
+        modelRequests.push(body)
+        return body.model === 'qwen3-tts-instruct-flash'
+          ? Response.json({ code: 'AccessDenied' }, { status: 403 })
+          : apiResponse()
+      }
+    )
+    let settingsChanges = 0
+    const unsubscribe = compatible.onSettingsChanged(() => settingsChanges++)
+    for (const text of ['设备运行告警', 'AI故障分析', '倾角分析', '工单关闭提醒', 'Pad员工任务']) {
+      const result = await compatible.synthesize(text)
+      assert.equal(result.provider, 'qwen')
+      assert.equal(result.voice, 'Elias', 'every announcement keeps the selected voice')
+    }
+    assert.equal(
+      modelRequests.filter(({ model }) => model === 'qwen3-tts-instruct-flash').length,
+      1
+    )
+    for (const body of modelRequests.filter(({ model }) => model === 'qwen3-tts-flash')) {
+      assert.equal(body.input.voice, 'Elias')
+      assert.equal(
+        body.input.instructions,
+        undefined,
+        'standard model gets only supported parameters'
+      )
+    }
+    assert.equal(compatible.status().activeModel, 'qwen3-tts-flash')
+    assert.equal(compatible.status().lastCloudError, null)
+    assert.equal((await compatible.test()).ok, true)
+    await compatible.save({ ...settings, apiKey: '' })
+    assert.equal(settingsChanges, 1, 'saving settings notifies connected clients')
+    assert.equal(compatible.status().activeModel, 'qwen3-tts-instruct-flash')
+    unsubscribe()
+    await compatible.save({ ...settings, apiKey: '' })
+    assert.equal(settingsChanges, 1, 'closing the server releases its settings listener')
+
     const app = Fastify()
     let httpCalls = 0
     const cachedService = new SpeechService(
@@ -279,7 +389,14 @@ async function run(): Promise<void> {
     try {
       const post = (): ReturnType<typeof app.inject> =>
         app.inject({ method: 'POST', url: '/api/speech', payload: { text: '工单提示' } })
-      assert.equal((await post()).headers['x-speech-provider'], 'qwen')
+      const cloudAudio = await post()
+      assert.equal(cloudAudio.headers['x-speech-provider'], 'qwen')
+      assert.equal(cloudAudio.headers['x-speech-voice'], 'Elias')
+      assert.equal(
+        (await post()).headers['x-speech-voice'],
+        'Elias',
+        'cached audio retains its voice metadata'
+      )
       await cachedService.save({ ...settings, mode: 'offline', apiKey: '' })
       assert.equal(
         (await post()).headers['x-speech-provider'],
@@ -288,6 +405,21 @@ async function run(): Promise<void> {
       )
       await post()
       assert.equal(httpCalls, 1)
+      const fallbackApp = Fastify()
+      registerSpeechRoutes(fallbackApp, (value) => strict.synthesize(value))
+      try {
+        // Restore cloud mode to exercise the true offline fallback headers.
+        await strict.save({ ...settings, apiKey: '' })
+        const fallbackAudio = await fallbackApp.inject({
+          method: 'POST',
+          url: '/api/speech',
+          payload: { text: '告警' }
+        })
+        assert.equal(fallbackAudio.headers['x-speech-provider'], 'offline')
+        assert.equal(fallbackAudio.headers['x-speech-fallback'], '1')
+      } finally {
+        await fallbackApp.close()
+      }
       assert.equal(
         (await app.inject({ method: 'POST', url: '/api/speech-settings', payload: {} })).statusCode,
         404

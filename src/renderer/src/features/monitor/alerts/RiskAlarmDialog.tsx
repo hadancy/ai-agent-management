@@ -2,17 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type { DeviceRiskAlarm } from '../types'
 import { usePlatformSpeech } from '../../../speech/usePlatformSpeech'
-import type { VoiceStatus } from '../../../speech/PlatformSpeechPlayer'
 import '../styles/forecast-alert.css'
-
-const VOICE_STATUS_TEXT: Record<VoiceStatus, string> = {
-  idle: '语音提示待播放',
-  speaking: '正在播报语音提示',
-  completed: '语音提示已播报',
-  loading: '正在生成语音提示…',
-  blocked: '点击播放语音提示',
-  error: '语音播报失败，请点击重试'
-}
 
 export default function RiskAlarmDialog({
   open,
@@ -179,11 +169,7 @@ export default function RiskAlarmDialog({
             <i />
             <i />
           </span>
-          <span>
-            {voiceStatus === 'error' || voiceStatus === 'blocked'
-              ? voiceMessage
-              : VOICE_STATUS_TEXT[voiceStatus]}
-          </span>
+          <span>{voiceMessage}</span>
           <button type="button" onClick={replayAlarm}>
             {voiceStatus === 'blocked' ? '点击播放' : '重新播报'}
           </button>

@@ -1,10 +1,17 @@
 import { isTiltAdjustmentPlan, type TiltAdjustmentPlan } from '../../../../shared/tilt-adjustment'
+import {
+  isSeasonalInspectionResult,
+  type SeasonalInspectionResult,
+  type TaskPhoto
+} from '../../../../shared/task-evidence'
 
 export type PadRole = 'A' | 'B' | 'C'
 
 export type PadTaskStatus = 'pending' | 'in_progress' | 'completed'
 
 export interface PadTask {
+  photos?: TaskPhoto[]
+  seasonalResult?: SeasonalInspectionResult
   tiltAdjustment?: TiltAdjustmentPlan
   id: string
   workOrderId: string
@@ -267,6 +274,13 @@ function normalizeTask(value: unknown, requestedRole: PadRole, index: number): P
   const tiltAdjustment = firstValue(records, ['tiltAdjustment'])
 
   return {
+    photos: Array.isArray(result.photos)
+      ? result.photos.filter(
+          (photo): photo is TaskPhoto =>
+            photo && typeof photo.id === 'string' && typeof photo.fileName === 'string'
+        )
+      : [],
+    seasonalResult: isSeasonalInspectionResult(result) ? result : undefined,
     tiltAdjustment: isTiltAdjustmentPlan(tiltAdjustment) ? tiltAdjustment : undefined,
     id,
     workOrderId: readString(records, ['workOrderId', 'work_order_id', 'orderId', 'id']),

@@ -1,9 +1,12 @@
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { SPEECH_CHANNELS, type SpeechSettingsInput } from '../shared/speech-settings'
-import type { SpeechService } from './server/speech-service'
+import type { PlatformSpeechService } from './server/recorded-speech'
 import { trustedSpeechSettingsUrl } from './speech-access'
 
-export function registerSpeechSettingsIpc(service: SpeechService, developmentUrl?: string): void {
+export function registerSpeechSettingsIpc(
+  service: PlatformSpeechService,
+  developmentUrl?: string
+): void {
   const check = (event: IpcMainInvokeEvent): void => {
     if (
       !BrowserWindow.fromWebContents(event.sender) ||

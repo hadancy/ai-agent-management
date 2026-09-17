@@ -1,12 +1,25 @@
-import type { SpeechSettingsInput, SpeechSettingsStatus } from '../../shared/speech-settings'
+import {
+  QWEN_TTS_MODEL,
+  QWEN_STANDARD_TTS_MODEL,
+  type QwenSpeechModel,
+  type SpeechSettingsInput,
+  type SpeechSettingsStatus
+} from '../../shared/speech-settings'
 import type { SpeechSettingsStore } from '../speech-settings'
-import { synthesizeQwenSpeech, type SpeechFetch } from './qwen-speech'
+import {
+  QwenModelAccessError,
+  synthesizeQwenSpeech,
+  type QwenSpeechConfig,
+  type SpeechFetch
+} from './qwen-speech'
 import type { SpeechAudio } from './speech'
 
 export class SpeechService {
   private lastCloudError: string | null = null
   private retryAfter = 0
   private seenRevision = -1
+  private cloudModel: QwenSpeechModel = QWEN_TTS_MODEL
+  private readonly settingsListeners = new Set<() => void>()
   private testJob?: Promise<{ ok: boolean; message: string; audio?: Uint8Array }>
 
   constructor(
@@ -21,20 +34,51 @@ export class SpeechService {
     this.seenRevision = this.store.revision
     this.lastCloudError = null
     this.retryAfter = 0
+    this.cloudModel = QWEN_TTS_MODEL
   }
 
   cacheNamespace(): string {
-    return String(this.store.revision)
+    this.resetOnChange()
+    return `${this.store.revision}:${this.cloudModel}`
+  }
+
+  onSettingsChanged(listener: () => void): () => void {
+    this.settingsListeners.add(listener)
+    return () => this.settingsListeners.delete(listener)
   }
 
   status(): SpeechSettingsStatus {
     this.resetOnChange()
-    return { ...this.store.status(), lastCloudError: this.lastCloudError }
+    return {
+      ...this.store.status(),
+      lastCloudError: this.lastCloudError,
+      activeModel: this.cloudModel
+    }
   }
 
   async save(input: SpeechSettingsInput): Promise<SpeechSettingsStatus> {
     await this.store.save(input)
-    return this.status()
+    const status = this.status()
+    for (const listener of this.settingsListeners) listener()
+    return status
+  }
+
+  private async synthesizeCloud(text: string, config: QwenSpeechConfig): Promise<Buffer> {
+    const revision = this.store.revision
+    const model = this.cloudModel
+    try {
+      return await synthesizeQwenSpeech(text, { ...config, model }, this.request)
+    } catch (error) {
+      if (!(error instanceof QwenModelAccessError) || model !== QWEN_TTS_MODEL) throw error
+      // Keep the selected voice when the account permits only the standard Qwen model.
+      const data = await synthesizeQwenSpeech(
+        text,
+        { ...config, model: QWEN_STANDARD_TTS_MODEL },
+        this.request
+      )
+      if (revision === this.store.revision) this.cloudModel = QWEN_STANDARD_TTS_MODEL
+      return data
+    }
   }
 
   async synthesize(text: string): Promise<SpeechAudio> {
@@ -43,12 +87,12 @@ export class SpeechService {
     const revision = this.store.revision
     if (config.mode === 'qwen' && this.now() >= this.retryAfter) {
       try {
-        const data = await synthesizeQwenSpeech(text, config, this.request)
+        const data = await this.synthesizeCloud(text, config)
         if (revision === this.store.revision) {
           this.lastCloudError = null
           this.retryAfter = 0
         }
-        return { data, provider: 'qwen' }
+        return { data, provider: 'qwen', voice: config.voice }
       } catch (error) {
         if (revision === this.store.revision) {
           this.lastCloudError = error instanceof Error ? error.message : '云端语音暂不可用。'
@@ -60,6 +104,7 @@ export class SpeechService {
     return {
       data: await this.offline(text),
       provider: 'offline',
+      fallback: config.mode === 'qwen',
       cacheTtlMs: config.mode === 'qwen' ? 5_000 : undefined
     }
   }
@@ -76,10 +121,9 @@ export class SpeechService {
     this.resetOnChange()
     const revision = this.store.revision
     try {
-      const data = await synthesizeQwenSpeech(
-        '阿里云语音连接成功。您有新的工单任务，请注意安全。',
-        this.store.snapshot(),
-        this.request
+      const data = await this.synthesizeCloud(
+        '系统通知。语音服务连接正常。当前有一项待处理工单，请相关人员按操作规程完成检查，并及时反馈处理结果。',
+        this.store.snapshot()
       )
       if (revision === this.store.revision) {
         this.lastCloudError = null
@@ -87,7 +131,10 @@ export class SpeechService {
       }
       return {
         ok: true,
-        message: 'Qwen3-TTS 云端测试成功，可播放下方试听音频。',
+        message:
+          this.cloudModel === QWEN_STANDARD_TTS_MODEL
+            ? 'Qwen3-TTS 云端测试成功，使用所选音色；当前账号无指令模型权限，情绪控制指令暂不可用。'
+            : 'Qwen3-TTS 云端测试成功，可播放下方试听音频。',
         audio: new Uint8Array(data)
       }
     } catch (error) {

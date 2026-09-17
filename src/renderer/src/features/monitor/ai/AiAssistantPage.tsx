@@ -21,9 +21,9 @@ const HANDLING_STEPS = [
   ['审核并下达工单', '在工单中心确认，再交由现场执行']
 ]
 const TILT_HANDLING_STEPS = [
-  ['上传项目资料', '选择任意格式的项目资料文件'],
-  ['获取分析建议', '结合项目资料，为你提供相关建议与帮助'],
-  ['人工下发，现场执行', '点击下发工单后，C 平台接收执行任务']
+  ['上传 Word，发送需求', '语音转文字，分析支架净高与三类技术方案'],
+  ['继续咨询季节倾角', '按当前日期给出调整策略，生成季节性工单'],
+  ['人工下发，现场执行', '核对目标倾角后下发，C 平台接收执行任务']
 ]
 
 export default function AiAssistantPage({
@@ -56,9 +56,33 @@ export default function AiAssistantPage({
   return (
     <section className="assistant-page" aria-labelledby="assistant-page-title">
       <header className="assistant-page__heading">
-        <div>
+        <div className="assistant-page__title">
           <span className="assistant-eyebrow">AI OPERATIONS ASSISTANT</span>
           <h2 id="assistant-page-title">智诊精巡</h2>
+        </div>
+        <div className="assistant-switcher" aria-label="切换聊天 AI">
+          <button
+            type="button"
+            aria-pressed={assistant === 'diagnosis'}
+            onClick={() => selectAssistant('diagnosis')}
+          >
+            <AssistantIcon name="spark" />
+            <span>
+              <strong>高精度智能运维系统</strong>
+              <small>图片诊断 · 故障处置</small>
+            </span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={assistant === 'tilt'}
+            onClick={() => selectAssistant('tilt')}
+          >
+            <AssistantIcon name="layers" />
+            <span>
+              <strong>智能数据分析系统</strong>
+              <small>资料上传 · 季节倾角</small>
+            </span>
+          </button>
         </div>
         <button type="button" className="assistant-outline-button" onClick={onViewWorkOrder}>
           <AssistantIcon name="clipboard" /> 工单中心 <AssistantIcon name="arrow" />
@@ -67,30 +91,6 @@ export default function AiAssistantPage({
 
       <div className="assistant-workspace">
         <div className="assistant-chat-workspace">
-          <div className="assistant-switcher" aria-label="切换聊天 AI">
-            <button
-              type="button"
-              aria-pressed={assistant === 'diagnosis'}
-              onClick={() => selectAssistant('diagnosis')}
-            >
-              <AssistantIcon name="spark" />
-              <span>
-                <strong>高精度智能运维系统</strong>
-                <small>图片诊断 · 故障处置</small>
-              </span>
-            </button>
-            <button
-              type="button"
-              aria-pressed={assistant === 'tilt'}
-              onClick={() => selectAssistant('tilt')}
-            >
-              <AssistantIcon name="layers" />
-              <span>
-                <strong>智能数据分析系统</strong>
-                <small>资料上传 · 季节倾角</small>
-              </span>
-            </button>
-          </div>
           <div className="assistant-chat-pane" hidden={assistant !== 'diagnosis'}>
             <AiAssistant
               active={assistant === 'diagnosis'}

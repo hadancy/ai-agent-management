@@ -4,9 +4,9 @@ import { usePlatformSpeech } from '../../speech/usePlatformSpeech'
 import AiAssistantPage from './ai/AiAssistantPage'
 import RiskAlarmDialog from './alerts/RiskAlarmDialog'
 import { detectDeviceRisk } from './alerts/riskDetection'
-import ForecastChart from './charts/ForecastChart'
+import AuxiliaryCharts, { type AuxiliaryChart } from './charts/AuxiliaryCharts'
 import { createForecastModel } from './charts/forecastSimulation'
-import RealtimeChart from './charts/RealtimeChart'
+import PowerTrendChart from './charts/PowerTrendChart'
 import MonitorHeader from './components/MonitorHeader'
 import WindowTitleBar from './components/WindowTitleBar'
 import { BASE_STRING_METRICS } from './data'
@@ -59,6 +59,7 @@ export default function ConsoleApp(): React.JSX.Element {
       : { name: '蓄电池组', voltage: 0, current: 0 }
   }, [telemetry])
   const [activeNav, setActiveNav] = useState<ConsoleNav>('首页')
+  const [auxiliaryChart, setAuxiliaryChart] = useState<AuxiliaryChart>('forecast')
   const [focusedSection, setFocusedSection] = useState<MonitorSection>()
   const [photovoltaicSettings, setPhotovoltaicSettings] =
     useState<PhotovoltaicSettings>(loadPhotovoltaicSettings)
@@ -146,6 +147,7 @@ export default function ConsoleApp(): React.JSX.Element {
   }, [])
 
   const navigate = useCallback((page: ConsoleNav, section?: MonitorSection): void => {
+    if (section === 'forecast') setAuxiliaryChart('forecast')
     setFocusedSection(section)
     setActiveNav(page)
   }, [])
@@ -290,19 +292,34 @@ export default function ConsoleApp(): React.JSX.Element {
                 className={`monitor-section${focusedSection === 'energy' ? ' monitor-section--focused' : ''}`}
               >
                 <EnergyFlowCanvas
-                  routeStates={{ photovoltaic: photovoltaicRouteState }}
+                  telemetry={telemetry}
+                  online={connectionState === 'connected'}
+                  routeStates={{ photovoltaic: photovoltaicRouteState, storage: batteryState }}
                   photovoltaicStates={photovoltaicStates}
                 />
               </div>
               <div className="chart-grid">
-                <RealtimeChart history={telemetryHistory} plcClockOffsetMs={plcClockOffsetMs} />
+                <PowerTrendChart
+                  telemetry={telemetry}
+                  serviceOrigin={serviceOrigin}
+                  connected={connectionState === 'connected'}
+                  clock={clock}
+                  plcClockOffsetMs={plcClockOffsetMs}
+                />
                 <div
                   id="monitor-forecast"
                   tabIndex={-1}
                   aria-label="预测预警"
                   className={`monitor-section${focusedSection === 'forecast' ? ' monitor-section--focused' : ''}`}
                 >
-                  <ForecastChart model={forecastModel} onRiskClick={() => setAlarmOpen(true)} />
+                  <AuxiliaryCharts
+                    activeTab={auxiliaryChart}
+                    onTabChange={setAuxiliaryChart}
+                    model={forecastModel}
+                    onRiskClick={() => setAlarmOpen(true)}
+                    history={telemetryHistory}
+                    plcClockOffsetMs={plcClockOffsetMs}
+                  />
                 </div>
               </div>
             </section>
@@ -310,18 +327,21 @@ export default function ConsoleApp(): React.JSX.Element {
         )}
       </div>
       {completionMessage &&
-        (completionVoiceStatus === 'blocked' || completionVoiceStatus === 'error') && (
+        completionVoiceStatus !== 'idle' &&
+        completionVoiceStatus !== 'completed' && (
           <aside className="console-speech-notice" aria-label="工单关闭语音提醒" role="status">
             <span>{completionVoiceMessage}</span>
-            <button
-              type="button"
-              onClick={() => {
-                if (completionVoiceStatus === 'blocked' && resumeCompletion()) return
-                speakCompletion(completionMessage, true)
-              }}
-            >
-              {completionVoiceStatus === 'blocked' ? '点击播放' : '重试播报'}
-            </button>
+            {(completionVoiceStatus === 'blocked' || completionVoiceStatus === 'error') && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (completionVoiceStatus === 'blocked' && resumeCompletion()) return
+                  speakCompletion(completionMessage, true)
+                }}
+              >
+                {completionVoiceStatus === 'blocked' ? '点击播放' : '重试播报'}
+              </button>
+            )}
             <button type="button" onClick={stopCompletion}>
               关闭
             </button>

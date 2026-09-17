@@ -1,4 +1,5 @@
 import type { TiltAdjustmentPlan } from '../../../../../shared/tilt-adjustment'
+import type { WorkOrderTaskResult } from '../../../../../shared/contracts'
 
 export type WorkOrderStatus =
   'pending_review' | 'dispatched' | 'in_progress' | 'plc_verifying' | 'closed'
@@ -17,7 +18,7 @@ export type WorkOrderTask = {
   startedAt: string | null
   checkpointAt: string | null
   submittedAt: string | null
-  result: Record<string, unknown> | null
+  result: WorkOrderTaskResult | null
   allowedActions: string[]
   blockedReason: string | null
 }

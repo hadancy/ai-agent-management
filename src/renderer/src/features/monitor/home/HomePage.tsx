@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 import type { TelemetrySnapshot } from '../../../../../shared/contracts'
+import { calculatePowerMW, formatPowerMW } from '../../../../../shared/power-units'
 import type { ConnectionState } from '../../../realtime'
 import type { ConsoleNav, MonitorSection } from '../types'
 import AgricultureScene from './AgricultureScene'
@@ -119,8 +120,10 @@ export default function HomePage({
   const plcOnline = connectionState === 'connected' && telemetry?.plcConnected === true
   const devices = telemetry?.devices ?? []
   const photovoltaic = devices.filter((device) => device.kind === 'pv-string')
-  const power =
-    photovoltaic.reduce((total, device) => total + device.voltage * device.current, 0) / 1000
+  const power = photovoltaic.reduce(
+    (total, device) => total + calculatePowerMW(device.voltage, device.current),
+    0
+  )
   const onlineDevices = devices.filter((device) => device.status !== 'offline').length
 
   return (
@@ -280,8 +283,8 @@ export default function HomePage({
         <div className="home-stat">
           <span>光伏实时功率</span>
           <strong>
-            {plcOnline && photovoltaic.length ? power.toFixed(2) : '—'}
-            <small>kW</small>
+            {formatPowerMW(plcOnline && photovoltaic.length ? power : undefined).replace(' MW', '')}
+            <small>MW</small>
           </strong>
           <span className="home-stat-note">
             {plcOnline ? '光伏组串合计输出' : '等待 PLC 实时数据'}

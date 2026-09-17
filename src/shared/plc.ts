@@ -5,7 +5,77 @@ export interface PlcConnection {
   registerAddressOffset: number
 }
 
-export const PLC_POINTS = [
+// Power unit confirmed by the user: UInt readings are integer MW, with no scaling.
+export const PLC_POWER_POINTS = [
+  {
+    id: 'photovoltaicPower',
+    label: '光伏发电实际功率',
+    address: '%MW110',
+    register: 55,
+    unit: 'MW',
+    type: 'UINT',
+    scale: 1
+  },
+  {
+    id: 'storageRatedPower',
+    label: '储能模块满载供电功率',
+    address: '%MW112',
+    register: 56,
+    unit: 'MW',
+    type: 'UINT',
+    scale: 1
+  },
+  {
+    id: 'primaryLoadPower',
+    label: '一级负载功率',
+    address: '%MW114',
+    register: 57,
+    unit: 'MW',
+    type: 'UINT',
+    scale: 1
+  },
+  {
+    id: 'secondaryLoadPower',
+    label: '二级负载功率',
+    address: '%MW116',
+    register: 58,
+    unit: 'MW',
+    type: 'UINT',
+    scale: 1
+  },
+  {
+    id: 'tertiaryLoadPower',
+    label: '三级负载功率',
+    address: '%MW118',
+    register: 59,
+    unit: 'MW',
+    type: 'UINT',
+    scale: 1
+  },
+  {
+    id: 'totalLoadPower',
+    label: '负载总实际功率',
+    address: '%MW200',
+    register: 100,
+    unit: 'MW',
+    type: 'UINT',
+    scale: 1
+  },
+  {
+    id: 'renewableSupplyPower',
+    label: '新能源系统供电总功率',
+    address: '%MW210',
+    register: 105,
+    unit: 'MW',
+    type: 'UINT',
+    scale: 1
+  }
+] as const
+
+export type PlcPowerId = (typeof PLC_POWER_POINTS)[number]['id']
+export type PlcPowerValues = Record<PlcPowerId, number>
+
+export const PLC_ELECTRICAL_POINTS = [
   {
     id: 'pv1Voltage',
     label: '1号光伏电压',
@@ -13,7 +83,7 @@ export const PLC_POINTS = [
     register: 200,
     unit: 'V',
     type: 'WORD',
-    scale: 1000
+    scale: 100
   },
   {
     id: 'pv1Current',
@@ -22,7 +92,7 @@ export const PLC_POINTS = [
     register: 201,
     unit: 'A',
     type: 'WORD',
-    scale: 1000
+    scale: 100
   },
   {
     id: 'pv2Voltage',
@@ -31,7 +101,7 @@ export const PLC_POINTS = [
     register: 202,
     unit: 'V',
     type: 'WORD',
-    scale: 1000
+    scale: 100
   },
   {
     id: 'pv2Current',
@@ -40,7 +110,7 @@ export const PLC_POINTS = [
     register: 203,
     unit: 'A',
     type: 'WORD',
-    scale: 1000
+    scale: 100
   },
   {
     id: 'pv3Voltage',
@@ -49,7 +119,7 @@ export const PLC_POINTS = [
     register: 204,
     unit: 'V',
     type: 'WORD',
-    scale: 1000
+    scale: 100
   },
   {
     id: 'pv3Current',
@@ -58,7 +128,7 @@ export const PLC_POINTS = [
     register: 205,
     unit: 'A',
     type: 'WORD',
-    scale: 1000
+    scale: 100
   },
   {
     id: 'pv4Voltage',
@@ -67,7 +137,7 @@ export const PLC_POINTS = [
     register: 206,
     unit: 'V',
     type: 'WORD',
-    scale: 1000
+    scale: 100
   },
   {
     id: 'pv4Current',
@@ -76,7 +146,7 @@ export const PLC_POINTS = [
     register: 207,
     unit: 'A',
     type: 'WORD',
-    scale: 1000
+    scale: 100
   },
   {
     id: 'batteryVoltage',
@@ -98,17 +168,21 @@ export const PLC_POINTS = [
   }
 ] as const
 
+export const PLC_POINTS = [...PLC_ELECTRICAL_POINTS, ...PLC_POWER_POINTS] as const
+
 export type PlcPoint = (typeof PLC_POINTS)[number]
 export type PlcPointId = PlcPoint['id']
 
 export function validatePlcPointValue(point: PlcPoint, value: unknown): string | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value)) return `${point.label}必须为有效数值`
-  if (point.type === 'WORD') {
+  if (point.type !== 'REAL') {
     if (value < 0 || value > 65535 / point.scale)
       return `${point.label}必须为 0–${65535 / point.scale} ${point.unit}`
+    if (point.scale === 1 && !Number.isInteger(value)) return `${point.label}必须为整数`
     const raw = value * point.scale
     // Allow binary floating-point noise, but never silently round extra decimal places.
-    if (Math.abs(raw - Math.round(raw)) > 1e-8) return `${point.label}最多支持 3 位小数`
+    if (Math.abs(raw - Math.round(raw)) > 1e-8)
+      return `${point.label}最多支持 ${Math.log10(point.scale)} 位小数`
   } else if (!Number.isFinite(Math.fround(value))) {
     return `${point.label}必须为有效的32位浮点数`
   }

@@ -2,6 +2,7 @@ import { isIP } from 'node:net'
 import type { FastifyInstance } from 'fastify'
 import {
   PLC_CLOCK_FIELDS,
+  PLC_ELECTRICAL_POINTS,
   PLC_POINTS,
   validatePlcClock,
   validatePlcPointValue,
@@ -15,7 +16,8 @@ import {
   type PlcWriteResult
 } from '../../shared/plc'
 import { ModbusException, PlcClient } from './plc-client'
-import { decodePlcPoint, encodePlcPoint } from './plc-values'
+import type { PlcSession } from './plc-session'
+import { decodePlcPoint, encodePlcPoint, readPlcPowers } from './plc-values'
 
 class PlcInputError extends Error {
   readonly statusCode = 400
@@ -90,15 +92,16 @@ async function readSnapshot(
   connection: PlcConnection
 ): Promise<PlcReadResponse> {
   const data = await client.read(200, 104)
+  const powers = await readPlcPowers((register, count) => client.read(register, count))
   const values = Object.fromEntries(
-    PLC_POINTS.map((point) => {
+    PLC_ELECTRICAL_POINTS.map((point) => {
       const value = decodePlcPoint(point, data, (point.register - 200) * 2)
       return [point.id, Number.isFinite(value) ? value : null]
     })
   ) as PlcReadResponse['values']
   return {
     connection,
-    values,
+    values: { ...values, ...powers },
     clock: decodeClock(data.subarray(200)),
     readAt: new Date().toISOString()
   }
@@ -182,6 +185,7 @@ export function registerPlcRoutes(
     developmentRendererUrl?: string
     recordEvent?: (type: string, payload: unknown) => void
     timeoutMs?: number
+    session?: PlcSession
   }
 ): void {
   const busy = new Set<string>()
@@ -227,10 +231,9 @@ export function registerPlcRoutes(
         if (busy.has(key))
           return reply.code(409).send({ message: '该PLC正在处理其他操作，请稍后再试' })
         busy.add(key)
-        const client = new PlcClient(connection, options.timeoutMs)
+        let dedicatedClient: PlcClient | undefined
         let writeStarted = false
-        try {
-          await client.connect()
+        const perform = async (client: PlcClient): Promise<PlcReadResponse | PlcWriteResponse> => {
           const before = await readSnapshot(client, connection)
           if (!input) return before
           options.recordEvent?.('plc.write-requested', {
@@ -249,12 +252,18 @@ export function registerPlcRoutes(
             app.log.error(error, 'PLC写入结果记录失败')
           }
           return result
+        }
+        try {
+          if (options.session?.matches(connection)) return await options.session.run(perform)
+          dedicatedClient = new PlcClient(connection, options.timeoutMs)
+          await dedicatedClient.connect()
+          return await perform(dedicatedClient)
         } catch (error) {
           return reply.code(502).send({
             message: `${error instanceof Error ? error.message : String(error)}；${writeStarted ? '写入状态未确认，请重新读取' : '本次未发送点位写入'}`
           })
         } finally {
-          client.close()
+          dedicatedClient?.close()
           busy.delete(key)
         }
       }

@@ -43,7 +43,7 @@ window.fetch = async (url, options = {}) => {
   const result = await ipcRenderer.invoke('api', { url: String(url), method: options.method || 'GET', body: options.body })
   return new Response(result.body, { status: result.statusCode, headers: { 'Content-Type': 'application/json' } })
 }
-window.saveTiltScreenshot = () => ipcRenderer.invoke('screenshot')
+window.saveTiltScreenshot = (name) => ipcRenderer.invoke('screenshot', name)
 `
   )
   writeFileSync(
@@ -66,7 +66,7 @@ app.whenReady().then(async () => {
       return { statusCode: response.statusCode, body: response.body }
     })
     const window = new BrowserWindow({ width: 1680, height: 977, show: false, webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: false, sandbox: false, backgroundThrottling: false } })
-    ipcMain.handle('screenshot', async () => { writeFileSync(${JSON.stringify(screenshot)}, (await window.webContents.capturePage()).toPNG()) })
+    ipcMain.handle('screenshot', async (_, name) => { const target = ['overview', 'seasonal'].includes(name) ? ${JSON.stringify(screenshot)}.replace(/\\.png$/, '-' + name + '.png') : ${JSON.stringify(screenshot)}; writeFileSync(target, (await window.webContents.capturePage()).toPNG()) })
     await window.loadFile(join(__dirname, 'index.html'))
     const reports = await window.webContents.executeJavaScript('window.runTiltAssistantSmoke()')
     reports.forEach(report => console.log(report))

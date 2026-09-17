@@ -81,7 +81,12 @@ window.runPadSpeechSmoke = async (): Promise<string[]> => {
   let holdRequest = false
   const response = (): Response =>
     new Response(new Blob([new Uint8Array(2400)], { type: 'audio/wav' }), {
-      headers: { 'Content-Type': 'audio/wav' }
+      headers: {
+        'Content-Type': 'audio/wav',
+        'X-Speech-Provider': 'recorded',
+        'X-Speech-Voice': 'Tingting',
+        'X-Speech-Fallback': '0'
+      }
     })
   window.fetch = async (url, init) => {
     check(
@@ -157,11 +162,24 @@ window.runPadSpeechSmoke = async (): Promise<string[]> => {
   check(primePlays === 1, 'tap immediately primes ordinary audio without SpeechSynthesis')
   await pause()
   check(states.at(-1)?.status === 'speaking', 'Android uses audio when speech API is absent')
+  check(states.at(-1)?.message === '正在播报', 'Pad shows plain playback status')
   check(completed === 0, 'request and playback start must not mark completion')
+  const initialUrl = audioInstances.at(-1)!.src
+  const beforeFirstSettings = requests
+  PlatformSpeechPlayer.syncSettings('http://localhost:17880', 'initial-settings')
+  await pause()
+  check(
+    requests === beforeFirstSettings + 1 && !urls.has(initialUrl),
+    'the first settings event refreshes speech that started before the connection was ready'
+  )
+  PlatformSpeechPlayer.syncSettings('http://localhost:17880', 'initial-settings')
+  check(requests === beforeFirstSettings + 1, 'duplicate initial settings do not restart playback')
   audioInstances.at(-1)!.finish()
   check(Number(completed) === 1, 'only ended marks completion')
   check(urls.size === 0, 'completed audio releases blob URLs')
-  reports.push('PASS: Android without speech API, synchronous tap, actual playback completion')
+  reports.push(
+    'PASS: Android without speech API, synchronous tap, initial settings sync and actual playback completion'
+  )
 
   denyAudio = true
   player.play('被拦截的工单', () => completed++, true)
@@ -236,6 +254,46 @@ window.runPadSpeechSmoke = async (): Promise<string[]> => {
   desktopPlayer.dispose()
   reports.push(
     'PASS: desktop always uses platform TTS; shared announcements cancel earlier playback without system speech'
+  )
+
+  let refreshedCompletions = 0
+  const refreshedStates: VoicePlaybackState[] = []
+  const refreshedPlayer = new PlatformSpeechPlayer('http://localhost:17880', (state) =>
+    refreshedStates.push(state)
+  )
+  PlatformSpeechPlayer.syncSettings('http://localhost:17880', 'settings-1')
+  holdRequest = true
+  refreshedPlayer.play('正在合成的告警', () => refreshedCompletions++)
+  const oldResponse = deferred!
+  holdRequest = false
+  const beforeRefresh = requests
+  PlatformSpeechPlayer.syncSettings('http://localhost:17880', 'settings-2')
+  await pause()
+  check(requests === beforeRefresh + 1, 'settings changes regenerate in-flight speech')
+  const currentUrl = audioInstances.at(-1)!.src
+  oldResponse(response())
+  await pause()
+  check(audioInstances.at(-1)!.src === currentUrl, 'late old-voice audio is discarded')
+  audioInstances.at(-1)!.finish()
+  check(refreshedCompletions === 1, 'refreshed speech completes exactly once')
+  denyAudio = true
+  refreshedPlayer.play('等待点击的告警')
+  await pause()
+  const blockedUrl = audioInstances.at(-1)!.src
+  PlatformSpeechPlayer.syncSettings('http://localhost:17880', 'settings-3')
+  await pause()
+  check(!urls.has(blockedUrl), 'settings changes discard blocked audio from the old voice')
+  check(
+    refreshedStates.at(-1)?.message === '音频已准备好，浏览器需要您点击“点击播放”。',
+    'blocked playback shows a plain recovery instruction'
+  )
+  const afterRefresh = requests
+  PlatformSpeechPlayer.syncSettings('http://localhost:17880', 'settings-3')
+  check(requests === afterRefresh, 'duplicate settings events do not repeat synthesis')
+  refreshedPlayer.dispose()
+  denyAudio = false
+  reports.push(
+    'PASS: settings refresh replaces in-flight and blocked audio; playback messages stay concise'
   )
 
   const root = createRoot(document.getElementById('root')!)

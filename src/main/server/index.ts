@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import fastifyCors from '@fastify/cors'
 import fastifyStatic from '@fastify/static'
@@ -9,16 +10,20 @@ import { getWifiLanAddress } from '../network'
 import { PlcTcpCollector, SimulatedCollector, type DataCollector } from './collector'
 import { createAppDatabase } from './database'
 import { registerPlcRoutes } from './plc-routes'
+import { registerPowerHistoryRoutes } from './power-history'
 import { registerSpeechRoutes } from './speech'
-import { synthesizeSpeech, type SpeechResources } from './offline-speech'
-import type { SpeechService } from './speech-service'
+import {
+  RecordedSpeechService,
+  recordedSpeechDirectory,
+  type PlatformSpeechService
+} from './recorded-speech'
 import { registerWorkOrderRoutes, WorkOrderService } from './work-orders'
 
 export interface EmbeddedServerOptions {
   dataDirectory: string
   rendererDirectory: string
-  speechResources?: SpeechResources
-  speechService?: SpeechService
+  recordedSpeechDirectory?: string
+  speechService?: PlatformSpeechService
   developmentRendererUrl?: string
   port?: number
 }
@@ -65,6 +70,11 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
   const collector = createCollector()
   const clients = new Set<WebSocket>()
   const app = Fastify({ logger: false })
+  const speech =
+    options.speechService ??
+    new RecordedSpeechService(
+      options.recordedSpeechDirectory ?? recordedSpeechDirectory(process.cwd(), false)
+    )
   const webSocketServer = new WebSocketServer({ noServer: true })
   let latestSnapshot: TelemetrySnapshot | undefined
 
@@ -86,6 +96,12 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
     }
   }
 
+  let speechSettingsRevision = randomUUID()
+  const unsubscribeSpeech = speech.onSettingsChanged(() => {
+    speechSettingsRevision = randomUUID()
+    broadcast({ type: 'speech.settings-changed', payload: { revision: speechSettingsRevision } })
+  })
+
   const workOrders = new WorkOrderService({
     database,
     broadcast,
@@ -99,7 +115,8 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
 
   await app.register(fastifyCors, {
     origin: true,
-    methods: ['GET', 'HEAD', 'POST', 'DELETE']
+    methods: ['GET', 'HEAD', 'POST', 'DELETE'],
+    exposedHeaders: ['X-Speech-Provider', 'X-Speech-Voice', 'X-Speech-Fallback']
   })
 
   app.get('/api/health', async () => ({
@@ -114,15 +131,14 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
     return latestSnapshot
   })
   registerWorkOrderRoutes(app, workOrders)
+  registerPowerHistoryRoutes(app, database)
   registerSpeechRoutes(
     app,
-    (text) =>
-      options.speechService
-        ? options.speechService.synthesize(text)
-        : synthesizeSpeech(text, options.speechResources),
-    () => options.speechService?.cacheNamespace() ?? ''
+    (text) => speech.synthesize(text),
+    () => speech.cacheNamespace()
   )
   registerPlcRoutes(app, {
+    session: collector instanceof PlcTcpCollector ? collector.session : undefined,
     config: {
       pageUrl: `http://${host}:${port}/plc`,
       collectorMode: collector.mode,
@@ -173,6 +189,12 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
   webSocketServer.on('connection', (socket) => {
     clients.add(socket)
     socket.send(JSON.stringify({ type: 'system.ready', payload: info } satisfies ServerEvent))
+    socket.send(
+      JSON.stringify({
+        type: 'speech.settings-changed',
+        payload: { revision: speechSettingsRevision }
+      } satisfies ServerEvent)
+    )
     if (latestSnapshot) {
       socket.send(
         JSON.stringify({ type: 'telemetry.updated', payload: latestSnapshot } satisfies ServerEvent)
@@ -209,6 +231,7 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
   return {
     info,
     async stop() {
+      unsubscribeSpeech?.()
       collector.stop()
       database.recordEvent('service.stopped', { timestamp: new Date().toISOString() })
       for (const client of clients) client.close(1001, 'service stopping')

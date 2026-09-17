@@ -56,14 +56,14 @@
   height: 58px;
   margin-bottom: 18px;
   border-radius: 17px;
-  font-size: 27px;
+  font-size: 1.6875rem;
   font-weight: 750;
 }
 
 .pad-binding-eyebrow {
   display: block;
   color: #0b7181;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.12em;
 }
@@ -71,7 +71,7 @@
 .pad-binding-card h1 {
   margin: 8px 0 10px;
   color: #172b40;
-  font-size: clamp(24px, 4vw, 34px);
+  font-size: clamp(1.5rem, calc(4vw * var(--app-font-scale, 1)), 2.125rem);
   line-height: 1.3;
 }
 
@@ -79,7 +79,7 @@
   max-width: 640px;
   margin: 0;
   color: #66798c;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.8;
 }
 
@@ -122,7 +122,7 @@
   place-items: center;
   border-radius: 16px;
   color: #fff;
-  font-size: 22px;
+  font-size: 1.375rem;
   font-weight: 750;
   box-shadow: 0 5px 13px rgba(30, 56, 81, 0.16);
 }
@@ -150,18 +150,18 @@
 
 .pad-role-option-copy strong {
   margin-bottom: 5px;
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .pad-role-option-copy small {
   color: #687b8e;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.6;
 }
 
 .pad-role-arrow {
   color: #7690a4;
-  font-size: 22px;
+  font-size: 1.375rem;
 }
 
 .pad-binding-tip {
@@ -173,7 +173,7 @@
   border-radius: 10px;
   color: #61768a;
   background: #f2f6f9;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .pad-binding-tip > span {
@@ -230,20 +230,20 @@
   height: 41px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
-  font-size: 20px;
+  font-size: 1.25rem;
   box-shadow: none;
 }
 
 .pad-header h1 {
   margin: 0;
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 650;
 }
 
 .pad-header p {
   margin: 3px 0 0;
   color: rgba(238, 249, 255, 0.68);
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 
 .pad-header-actions {
@@ -256,7 +256,7 @@
   padding: 7px 10px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.13);
-  font-size: 11px;
+  font-size: 0.6875rem;
   white-space: nowrap;
 }
 
@@ -289,7 +289,7 @@
   border-radius: 9px;
   color: #f1fbff;
   background: rgba(255, 255, 255, 0.08);
-  font-size: 11px;
+  font-size: 0.6875rem;
   cursor: pointer;
 }
 
@@ -299,7 +299,7 @@
 }
 
 .pad-refresh-button span {
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1;
 }
 
@@ -332,7 +332,7 @@
 
 .pad-identity-copy > span {
   color: var(--pad-accent-dark);
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.1em;
 }
@@ -340,13 +340,13 @@
 .pad-identity-copy h2 {
   margin: 4px 0 3px;
   color: #1c3045;
-  font-size: 19px;
+  font-size: 1.1875rem;
 }
 
 .pad-identity-copy p {
   margin: 0;
   color: #697c8f;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.6;
 }
 
@@ -359,7 +359,7 @@
 
 .pad-identity-tools small {
   color: #8291a0;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .pad-identity-tools button,
@@ -369,7 +369,7 @@
   border-radius: 8px;
   color: #607487;
   background: #f7f9fb;
-  font-size: 11px;
+  font-size: 0.6875rem;
   cursor: pointer;
 }
 
@@ -397,20 +397,20 @@
   place-items: center;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.75);
-  font-size: 18px;
+  font-size: 1.125rem;
 }
 
 .pad-voice-card strong {
   display: block;
   margin-bottom: 2px;
   color: #3e5365;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .pad-voice-card p {
   margin: 0;
   color: #748596;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.5;
 }
 
@@ -420,7 +420,7 @@
   border-radius: 9px;
   color: #fff;
   background: #b76d11;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 650;
   cursor: pointer;
 }
@@ -467,13 +467,13 @@
 }
 
 .pad-offline-banner strong {
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .pad-offline-banner p {
   margin: 2px 0 0;
   color: #926455;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.5;
 }
 
@@ -491,11 +491,11 @@
 
 .pad-sync-error strong {
   margin-bottom: 2px;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .pad-sync-error span {
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 
 .pad-sync-error button {
@@ -504,7 +504,7 @@
   border-radius: 8px;
   color: #8b3636;
   background: #fff;
-  font-size: 11px;
+  font-size: 0.6875rem;
   cursor: pointer;
 }
 
@@ -518,7 +518,7 @@
   background: #ecfaf4;
   border: 1px solid #a9dac7;
   box-shadow: 0 14px 35px rgba(31, 77, 60, 0.2);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .pad-success-toast > span {
@@ -545,7 +545,7 @@
   border-radius: 8px;
   color: #6d7f91;
   background: transparent;
-  font-size: 12px;
+  font-size: 0.75rem;
   cursor: pointer;
 }
 
@@ -565,7 +565,7 @@
   border-radius: 999px;
   color: #718396;
   background: #e8eef3;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .pad-task-tabs .is-active b {
@@ -615,13 +615,13 @@
 .task-order-number span {
   margin-bottom: 2px;
   color: #8a99a8;
-  font-size: 9px;
+  font-size: 0.5625rem;
   letter-spacing: 0.1em;
 }
 
 .task-order-number strong {
   color: #30465a;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .task-card-badges {
@@ -632,7 +632,7 @@
 .task-priority {
   padding: 5px 8px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 0.625rem;
   white-space: nowrap;
 }
 
@@ -663,7 +663,7 @@
 
 .task-fault-type {
   color: var(--pad-accent-dark);
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -671,7 +671,7 @@
 .task-title-row h2 {
   margin: 3px 0 0;
   color: #193046;
-  font-size: 20px;
+  font-size: 1.25rem;
   line-height: 1.35;
 }
 
@@ -682,7 +682,7 @@
   border-radius: 9px;
   color: #536b7f;
   background: #f7f9fb;
-  font-size: 11px;
+  font-size: 0.6875rem;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -709,13 +709,13 @@
 .task-meta dt {
   margin-bottom: 2px;
   color: #8b99a6;
-  font-size: 9px;
+  font-size: 0.5625rem;
 }
 
 .task-meta dd {
   overflow: hidden;
   color: #53687b;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -729,7 +729,7 @@
   display: block;
   margin-bottom: 6px;
   color: #81909e;
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 700;
   letter-spacing: 0.1em;
 }
@@ -737,8 +737,11 @@
 .task-instruction p {
   margin: 0;
   color: #374f65;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.75;
+}
+.task-instruction--tilt p {
+  white-space: pre-line;
 }
 
 .task-risks {
@@ -754,7 +757,7 @@
   align-items: center;
   gap: 7px;
   color: #8b5515;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .task-risk-icon {
@@ -783,13 +786,13 @@
   border-radius: 7px;
   color: #885a24;
   background: rgba(255, 255, 255, 0.68);
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 
 .task-risks > p {
   margin: 8px 0 0;
   color: #8a6333;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.6;
 }
 
@@ -808,7 +811,7 @@
   align-items: flex-start;
   gap: 9px;
   color: #40576b;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.55;
   cursor: pointer;
 }
@@ -843,7 +846,7 @@
   color: #fff;
   background: linear-gradient(100deg, var(--pad-accent-dark), var(--pad-accent));
   box-shadow: 0 6px 15px color-mix(in srgb, var(--pad-accent) 20%, transparent);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 650;
   cursor: pointer;
 }
@@ -866,13 +869,13 @@
 
 .task-form-heading strong {
   color: #263f55;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .task-form-heading span {
   margin-top: 3px;
   color: #82919f;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .task-fieldset {
@@ -888,7 +891,7 @@
 .task-fieldset legend {
   padding: 0 5px;
   color: #64798c;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 650;
 }
 
@@ -905,7 +908,7 @@
   display: block;
   margin-bottom: 5px;
   color: #617487;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
 }
 
@@ -917,7 +920,7 @@
   border-radius: 8px;
   color: #2d455a;
   background: #fbfcfd;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .task-field textarea {
@@ -944,7 +947,7 @@
   border-radius: 7px;
   color: #9a3939;
   background: #fff0f0;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.5;
 }
 
@@ -958,7 +961,7 @@
   border-radius: 8px;
   color: #923c3c;
   background: #fff1f1;
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 
 .task-blocking-notice {
@@ -981,13 +984,13 @@
 .task-blocking-notice strong {
   display: block;
   color: #52677a;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .task-blocking-notice p {
   margin: 3px 0 0;
   color: #7b8996;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.55;
 }
 
@@ -1009,7 +1012,7 @@
   min-height: 31px;
   border-radius: 7px;
   color: #8a99a7;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .task-stage-strip i {
@@ -1020,7 +1023,7 @@
   border-radius: 50%;
   background: #dfe6eb;
   font-style: normal;
-  font-size: 9px;
+  font-size: 0.5625rem;
 }
 
 .task-stage-strip .is-active {
@@ -1063,13 +1066,13 @@
 
 .task-completed-result strong {
   color: #2f6652;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .task-completed-result p {
   margin: 3px 0 0;
   color: #728496;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.6;
 }
 
@@ -1077,7 +1080,7 @@
   margin: 8px 0 0;
   padding-left: 17px;
   color: #536c60;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.75;
 }
 
@@ -1103,19 +1106,19 @@
   border-radius: 50%;
   color: #6c96a2;
   background: #e6f0f2;
-  font-size: 22px;
+  font-size: 1.375rem;
 }
 
 .pad-empty-state h2 {
   margin: 12px 0 5px;
   color: #50687c;
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .pad-empty-state p {
   max-width: 420px;
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.7;
 }
 
@@ -1143,7 +1146,7 @@
 .pad-task-loading p {
   grid-column: 1 / -1;
   margin: 7px 0 0;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 @keyframes pad-spin {
@@ -1177,13 +1180,13 @@
 
   .connection-pill {
     padding: 5px 8px;
-    font-size: 9px;
+    font-size: 0.5625rem;
   }
 
   .pad-refresh-button {
     min-height: 29px;
     padding: 5px 8px;
-    font-size: 9px;
+    font-size: 0.5625rem;
   }
 
   .pad-main {
@@ -1200,7 +1203,7 @@
     width: 46px;
     height: 46px;
     border-radius: 13px;
-    font-size: 19px;
+    font-size: 1.1875rem;
   }
 
   .pad-identity-tools {
@@ -1266,11 +1269,11 @@
   }
 
   .pad-header h1 {
-    font-size: 15px;
+    font-size: 0.9375rem;
   }
 
   .pad-header p {
-    font-size: 9px;
+    font-size: 0.5625rem;
   }
 
   .pad-refresh-button {
@@ -1281,13 +1284,13 @@
     flex-direction: column;
     gap: 2px;
     min-height: 49px;
-    font-size: 10px;
+    font-size: 0.625rem;
   }
 
   .pad-task-tabs b {
     height: 17px;
     min-width: 17px;
-    font-size: 8px;
+    font-size: 0.5rem;
   }
 
   .pad-task-card {
@@ -1299,7 +1302,7 @@
   }
 
   .task-title-row h2 {
-    font-size: 17px;
+    font-size: 1.0625rem;
   }
 
   .task-replay-button {
@@ -1308,7 +1311,7 @@
   }
 
   .task-replay-button span {
-    font-size: 15px;
+    font-size: 0.9375rem;
   }
 
   .task-meta {

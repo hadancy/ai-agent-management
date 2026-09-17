@@ -37,8 +37,8 @@ export default function MonitorHeader({
   return (
     <header className="console-header">
       <div className="brand-block">
-        <h1>AI智能体辅助管理平台</h1>
-        <i />
+        <h1>农光智算AI智能体辅助管理平台</h1>
+        <i aria-hidden="true" />
         <span>光明村光伏电站</span>
       </div>
       <nav aria-label="主要功能">
@@ -71,7 +71,9 @@ export default function MonitorHeader({
         </span>
         <b />
         <time dateTime={clock.toISOString()}>
-          <span className="clock-icon">◷</span>
+          <span className="clock-icon" aria-hidden="true">
+            ◷
+          </span>
           {clockText}
         </time>
       </div>

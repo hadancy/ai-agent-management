@@ -8,6 +8,12 @@ import { createAppDatabase } from '../src/main/server/database'
 import { registerWorkOrderRoutes, WorkOrderService } from '../src/main/server/work-orders'
 import { getTiltAdvice, getStationMonth, getTiltReply } from '../src/shared/tilt-adjustment'
 import type { ServerEvent, TelemetrySnapshot } from '../src/shared/contracts'
+import {
+  seasonalStrategy,
+  seasonalWorkOrderFields,
+  stationDate,
+  getPlanAdvice
+} from '../src/shared/agrivoltaic-analysis'
 
 export async function runTiltWorkOrderSmoke(): Promise<void> {
   const seasons = [
@@ -28,6 +34,24 @@ export async function runTiltWorkOrderSmoke(): Promise<void> {
   assert.equal(getStationMonth(new Date('2026-05-31T16:00:00Z')), 6)
   assert.equal(getStationMonth(new Date('2026-08-31T15:59:59Z')), 8)
   assert.equal(getStationMonth(new Date('2026-08-31T16:00:00Z')), 9)
+  assert.equal(stationDate(new Date('2026-09-22T16:00:00Z')), '2026-09-23')
+  for (const [date, season, target, end] of [
+    ['2026-02-03', '冬季', 34, '2026-02-03'],
+    ['2026-02-04', '春季', 20, '2026-05-05'],
+    ['2026-05-05', '春季', 20, '2026-05-05'],
+    ['2026-05-06', '夏季', 19, '2026-08-07'],
+    ['2026-08-07', '夏季', 19, '2026-08-07'],
+    ['2026-08-08', '秋季', 22, '2026-11-07'],
+    ['2026-09-23', '秋季', 22, '2026-11-07'],
+    ['2026-11-07', '秋季', 22, '2026-11-07'],
+    ['2026-11-08', '冬季', 34, '2027-02-03'],
+    ['2028-02-29', '春季', 20, '2028-05-05']
+  ] as const) {
+    const strategy = seasonalStrategy(date)
+    assert.equal(strategy.season, season)
+    assert.equal(strategy.targetAngle, target)
+    assert.equal(strategy.endDate, end)
+  }
   const directory = mkdtempSync(join(tmpdir(), 'tilt-work-order-'))
   let database = createAppDatabase(directory)
   const events: ServerEvent[] = []
@@ -63,7 +87,16 @@ export async function runTiltWorkOrderSmoke(): Promise<void> {
       { ...plan, fileName: '' },
       { ...plan, fileSize: -1 },
       { ...plan, fileSize: '2048' },
-      { ...plan, requestId: '' }
+      { ...plan, requestId: '' },
+      { ...plan, userRequest: 1 },
+      { ...plan, userRequest: '  ' },
+      { ...plan, userRequest: '需'.repeat(2001) },
+      { ...plan, fileName: '', fileSize: 1, userRequest: '分析倾角' },
+      { ...plan, analysisVersion: 2 },
+      { ...plan, analysisDate: '2026-07-01' },
+      { ...plan, analysisVersion: 3, analysisDate: '2026-07-01' },
+      { ...plan, analysisVersion: 2, analysisDate: '2026-02-30' },
+      { ...plan, analysisVersion: 2, analysisDate: '2026-09-23' }
     ]) {
       assert.equal(
         (
@@ -195,6 +228,88 @@ export async function runTiltWorkOrderSmoke(): Promise<void> {
       assert.equal(accepted.workOrder.tiltAdjustment?.fileName, file.name)
       assert.equal(accepted.workOrder.handlingSuggestion, getTiltReply(7))
     }
+    const textPlan = {
+      month: 9,
+      fileName: '',
+      fileSize: 0,
+      requestId: 'text-request',
+      userRequest: '请分析光伏组件的倾角及安装高度。'
+    }
+    const textDraft = resumed.createDraft({ tiltAdjustment: textPlan }).workOrder
+    assert.equal(textDraft.status, 'pending_review')
+    assert.equal(textDraft.handlingSuggestion, getTiltReply(9))
+    assert.equal(resumed.createDraft({ tiltAdjustment: textPlan }).workOrder.id, textDraft.id)
+    assert.throws(
+      () => resumed.createDraft({ tiltAdjustment: { ...textPlan, userRequest: '不同需求' } }),
+      /不同内容/
+    )
+    assert.deepEqual(database.getWorkOrder(textDraft.id)?.tiltAdjustment, textPlan)
+    resumed.dispatch(textDraft.id, {})
+    const textTask = resumed
+      .listAssignedTasks('C')
+      .items.find((task) => task.workOrderId === textDraft.id)!
+    assert.ok(textTask.description.includes(`用户需求「${textPlan.userRequest}」`))
+    assert.ok(!textTask.description.includes('项目资料「」'))
+    const autumnPlan = {
+      ...textPlan,
+      analysisVersion: 2 as const,
+      analysisDate: '2026-09-23',
+      fileName: '农光互补项目.docx',
+      requestId: 'new-autumn-plan'
+    }
+    let autumn = resumed.createDraft({ tiltAdjustment: autumnPlan }).workOrder
+    assert.equal(autumn.orderNumber, 'NG-GQ-20260923-001')
+    assert.equal(autumn.stationName, '光明村农光互补智慧农业一体化运维项目')
+    assert.equal(autumn.faultType, '支架倾角季节性调整-秋季模式')
+    assert.equal(resumed.createDraft({ tiltAdjustment: autumnPlan }).workOrder.id, autumn.id)
+    assert.equal(
+      resumed.createDraft({ tiltAdjustment: { ...autumnPlan, requestId: 'new-autumn-plan-2' } })
+        .workOrder.orderNumber,
+      'NG-GQ-20260923-002'
+    )
+    assert.throws(
+      () => resumed.createDraft({ tiltAdjustment: { ...autumnPlan, analysisDate: '2026-09-24' } }),
+      /不同内容/
+    )
+    assert.equal(
+      seasonalWorkOrderFields(autumnPlan).find(([label]) => label === '调整后维持周期')?.[1],
+      '2026.09.23～2026.11.07'
+    )
+    assert.equal(getPlanAdvice(autumnPlan).minAngle, 21)
+    assert.equal(getPlanAdvice(autumnPlan).maxAngle, 23)
+    autumn = resumed.dispatch(autumn.id, {})
+    const seasonalC = resumed
+      .listAssignedTasks('C')
+      .items.find((task) => task.workOrderId === autumn.id)!
+    assert.ok(seasonalC.description.includes('22°（允许偏差 ±1°）'))
+    assert.ok(seasonalC.description.includes('09:00–17:00'))
+    assert.ok(seasonalC.description.includes('风速≤10 m/s'))
+    resumed.startTask(autumn.tasks.find((task) => task.role === 'A')!.id)
+    const autumnB = autumn.tasks.find((task) => task.role === 'B')!.id
+    resumed.startTask(autumnB)
+    resumed.completeSafetyCheckpoint(autumnB, {
+      isolationConfirmed: true,
+      voltageTestPassed: true,
+      safetyMeasuresConfirmed: true
+    })
+    resumed.startTask(seasonalC.id)
+    assert.throws(
+      () =>
+        resumed.submitTask(seasonalC.id, {
+          adjustedAngle: 30,
+          fasteningConfirmed: true,
+          retestPassed: true
+        }),
+      /21至23度/
+    )
+    resumed.submitTask(seasonalC.id, {
+      adjustedAngle: 22,
+      fasteningConfirmed: true,
+      retestPassed: true
+    })
+    database.close()
+    database = createAppDatabase(directory)
+    assert.deepEqual(database.getWorkOrder(autumn.id)?.tiltAdjustment, autumnPlan)
     console.log(
       'PASS: 任意文件（含空文件、大文件）生成固定模板工单、月份边界、旧库升级、草稿隔离、重复下发、C 平台任务与关单'
     )

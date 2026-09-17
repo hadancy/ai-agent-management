@@ -1,8 +1,20 @@
 import { useState, type FormEvent } from 'react'
 import type { PadTask, TaskAction } from './taskClient'
-import { getTiltAdvice } from '../../../../shared/tilt-adjustment'
+import { getPlanAdvice } from '../../../../shared/agrivoltaic-analysis'
+import { seasonalWorkOrderFields } from '../../../../shared/agrivoltaic-analysis'
+import {
+  hasSeasonalFieldWorkflow,
+  SEASONAL_ROLES,
+  type TaskPhoto
+} from '../../../../shared/task-evidence'
+import { getServiceOrigin } from '../../realtime'
+import TaskPhotoPicker from './TaskPhotoPicker'
+import TaskPhotoGallery from '../workorder/TaskPhotoGallery'
+import SeasonalResultView from '../workorder/SeasonalResultView'
+import SeasonalTaskForm from './SeasonalTaskForm'
 
 interface PadTaskCardProps {
+  serviceOrigin?: string
   task: PadTask
   busyAction: TaskAction | null
   actionError?: string
@@ -64,8 +76,9 @@ function StartTaskAction({
   onAction: PadTaskCardProps['onAction']
 }): React.JSX.Element {
   const [acknowledged, setAcknowledged] = useState(false)
-  const label =
-    task.role === 'A'
+  const label = hasSeasonalFieldWorkflow(task.tiltAdjustment)
+    ? SEASONAL_ROLES[task.role].start
+    : task.role === 'A'
       ? '开始安全监护'
       : task.role === 'B'
         ? '开始隔离与验电'
@@ -499,7 +512,7 @@ function TiltAdjustmentForm({
   const [retest, setRetest] = useState(false)
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
-  const advice = getTiltAdvice(task.tiltAdjustment!.month)
+  const advice = getPlanAdvice(task.tiltAdjustment!)
   if (!task.canSubmit) return <BlockingNotice task={task} action="submit" />
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault()
@@ -609,9 +622,29 @@ export default function PadTaskCard({
   busyAction,
   actionError,
   onAction,
-  onReplay
+  onReplay,
+  serviceOrigin = getServiceOrigin()
 }: PadTaskCardProps): React.JSX.Element {
-  const busy = busyAction !== null
+  const [photos, setPhotos] = useState<TaskPhoto[]>([])
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const busy = busyAction !== null || photoBusy
+  const seasonal = hasSeasonalFieldWorkflow(task.tiltAdjustment)
+  const submitWithPhotos: PadTaskCardProps['onAction'] = (currentTask, action, body) =>
+    onAction(currentTask, action, {
+      ...body,
+      ...(action !== 'start' ? { photoIds: photos.map((photo) => photo.id) } : {})
+    })
+  const photoPicker = (
+    <TaskPhotoPicker
+      key={`${task.id}-${task.checkpointCompleted}`}
+      taskId={task.id}
+      serviceOrigin={serviceOrigin}
+      submittedPhotos={task.photos ?? []}
+      disabled={busyAction !== null}
+      onChange={setPhotos}
+      onBusy={setPhotoBusy}
+    />
+  )
   const timestamp = task.completedAt || task.startedAt || task.dispatchedAt
 
   return (
@@ -666,7 +699,27 @@ export default function PadTaskCard({
         </div>
       </dl>
 
-      <section className="task-instruction" aria-labelledby={`instruction-${task.id}`}>
+      {task.tiltAdjustment?.analysisVersion === 2 && (
+        <section className="task-project-info">
+          <h3>工单基本信息</h3>
+          <dl>
+            {[
+              ['工单编号', task.workOrderNumber],
+              ...seasonalWorkOrderFields(task.tiltAdjustment)
+            ].map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+
+      <section
+        className={`task-instruction${task.tiltAdjustment?.analysisVersion === 2 ? ' task-instruction--tilt' : ''}`}
+        aria-labelledby={`instruction-${task.id}`}
+      >
         <span className="task-section-label" id={`instruction-${task.id}`}>
           我的任务
         </span>
@@ -691,7 +744,7 @@ export default function PadTaskCard({
         )}
       </section>
 
-      {task.role === 'B' && task.status === 'in_progress' && (
+      {!seasonal && task.role === 'B' && task.status === 'in_progress' && (
         <div className="task-stage-strip" aria-label="B员工任务进度">
           <span className={task.checkpointCompleted ? 'is-complete' : 'is-active'}>
             <i>{task.checkpointCompleted ? '✓' : '1'}</i>隔离验电
@@ -713,23 +766,49 @@ export default function PadTaskCard({
       )}
 
       {task.status === 'pending' && <StartTaskAction task={task} busy={busy} onAction={onAction} />}
-      {task.status === 'in_progress' && task.role === 'A' && (
-        <SafetyMonitorForm task={task} busy={busy} onAction={onAction} />
+      {task.status === 'in_progress' && <h3 className="task-return-heading">结果回传</h3>}
+      {task.status === 'in_progress' && seasonal && (
+        <SeasonalTaskForm
+          task={task}
+          busy={busy}
+          photoCount={(task.photos?.length ?? 0) + photos.length}
+          photos={photoPicker}
+          onAction={submitWithPhotos}
+        />
       )}
-      {task.status === 'in_progress' && task.role === 'B' && !task.checkpointCompleted && (
-        <IsolationCheckpointForm task={task} busy={busy} onAction={onAction} />
-      )}
-      {task.status === 'in_progress' && task.role === 'B' && task.checkpointCompleted && (
-        <RestorationForm task={task} busy={busy} onAction={onAction} />
+      {task.status === 'in_progress' && !seasonal && photoPicker}
+      {task.status === 'in_progress' && !seasonal && task.role === 'A' && (
+        <SafetyMonitorForm task={task} busy={busy} onAction={submitWithPhotos} />
       )}
       {task.status === 'in_progress' &&
+        !seasonal &&
+        task.role === 'B' &&
+        !task.checkpointCompleted && (
+          <IsolationCheckpointForm task={task} busy={busy} onAction={submitWithPhotos} />
+        )}
+      {task.status === 'in_progress' &&
+        !seasonal &&
+        task.role === 'B' &&
+        task.checkpointCompleted && (
+          <RestorationForm task={task} busy={busy} onAction={submitWithPhotos} />
+        )}
+      {task.status === 'in_progress' &&
+        !seasonal &&
         task.role === 'C' &&
         (task.tiltAdjustment ? (
-          <TiltAdjustmentForm task={task} busy={busy} onAction={onAction} />
+          <TiltAdjustmentForm task={task} busy={busy} onAction={submitWithPhotos} />
         ) : (
-          <TreatmentForm task={task} busy={busy} onAction={onAction} />
+          <TreatmentForm task={task} busy={busy} onAction={submitWithPhotos} />
         ))}
-      {task.status === 'completed' && <CompletedResult task={task} />}
+      {task.status === 'completed' && (
+        <>
+          <CompletedResult task={task} />
+          {task.seasonalResult && task.tiltAdjustment && (
+            <SeasonalResultView result={task.seasonalResult} plan={task.tiltAdjustment} />
+          )}
+          <TaskPhotoGallery photos={task.photos ?? []} serviceOrigin={serviceOrigin} />
+        </>
+      )}
     </article>
   )
 }

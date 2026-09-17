@@ -28,13 +28,28 @@ import type {
 } from '../../shared/contracts'
 import type { AppDatabase } from './database'
 import { PlcSynchronizedClock, STATION_TIME_ZONE } from '../../shared/plc-clock'
+import {
+  hasSeasonalFieldWorkflow,
+  isSeasonalInspectionResult,
+  MAX_TASK_PHOTO_BYTES,
+  MAX_TASK_PHOTOS,
+  SEASONAL_ROLES,
+  seasonalChecklist,
+  seasonalTaskVoice,
+  type SeasonalInspectionResult,
+  type TaskPhoto
+} from '../../shared/task-evidence'
 import { compareWorkOrders } from '../../shared/work-order-sort'
 import {
-  getTiltAdvice,
   getTiltReply,
   isTiltAdjustmentPlan,
   type TiltAdjustmentPlan
 } from '../../shared/tilt-adjustment'
+import {
+  getPlanAdvice,
+  seasonalWorkOrderFields,
+  SEASONAL_RESULT
+} from '../../shared/agrivoltaic-analysis'
 
 const DEFAULT_NORMAL_VOLTAGE = 613
 const DEFAULT_NORMAL_CURRENT = 9.4
@@ -95,8 +110,19 @@ const TASK_TEMPLATES: TaskTemplate[] = [
 ]
 
 function tiltTaskTemplates(plan: TiltAdjustmentPlan): TaskTemplate[] {
-  const advice = getTiltAdvice(plan.month)
+  const advice = getPlanAdvice(plan)
+  const source = plan.userRequest
+    ? `用户需求「${plan.userRequest}」`
+    : `项目资料「${plan.fileName}」`
   return TASK_TEMPLATES.map((template) => {
+    if (hasSeasonalFieldWorkflow(plan))
+      return {
+        ...template,
+        assigneeName: `${template.role}同学`,
+        title: SEASONAL_ROLES[template.role].title,
+        description: `${SEASONAL_ROLES[template.role].signer}：完成${SEASONAL_ROLES[template.role].title}，逐项确认、上传现场照片并签字后提交。`,
+        risks: ['高处作业坠落', '支架调整夹伤', '组件松动或滑落', '误碰带电部位']
+      }
     if (template.role === 'A')
       return {
         ...template,
@@ -110,8 +136,18 @@ function tiltTaskTemplates(plan: TiltAdjustmentPlan): TaskTemplate[] {
       }
     return {
       ...template,
-      title: `执行${advice.season}倾角`,
-      description: `依据${plan.month}月项目资料「${plan.fileName}」，将组件倾角调整为${advice.minAngle}至${advice.maxAngle}度。${advice.explanation}调整后确认支架紧固并复测，记录实际倾角。`,
+      title:
+        plan.analysisVersion === 2
+          ? `支架倾角季节性调整-${advice.season}模式`
+          : `执行${advice.season}倾角`,
+      description:
+        plan.analysisVersion === 2
+          ? `${seasonalWorkOrderFields(plan)
+              .map(([label, value]) => `${label}：${value}`)
+              .join(
+                '\n'
+              )}\n用户需求：${plan.userRequest ?? ''}\n调整后确认支架紧固并复测，记录实际倾角。`
+          : `依据${plan.month}月${source}，将组件倾角调整为${advice.minAngle}至${advice.maxAngle}度。${advice.explanation}调整后确认支架紧固并复测，记录实际倾角。`,
       risks: ['高处作业坠落', '支架调整夹伤', '组件松动或滑落', '误碰带电部位']
     }
   })
@@ -193,6 +229,7 @@ function isTaskStarted(task: WorkOrderTask): boolean {
 
 function isSafetyCheckpointComplete(task: WorkOrderTask): boolean {
   if (task.role !== 'B' || !task.checkpointAt || task.result?.role !== 'B') return false
+  if (isSeasonalInspectionResult(task.result)) return false
   return (
     task.result.isolationConfirmed &&
     task.result.voltageTestPassed &&
@@ -220,6 +257,20 @@ function capabilities(
   const taskA = taskByRole(workOrder, 'A')
   const taskB = taskByRole(workOrder, 'B')
   const taskC = taskByRole(workOrder, 'C')
+
+  if (hasSeasonalFieldWorkflow(workOrder.tiltAdjustment)) {
+    const prerequisite = task.role === 'C' ? taskB : task.role === 'A' ? taskC : undefined
+    if (prerequisite && prerequisite.status !== 'submitted')
+      return {
+        allowedActions: [],
+        blockedReason:
+          task.role === 'C' ? '需等待B同学提交作业前检查确认表' : '需等待C同学提交现场作业实施记录'
+      }
+    return {
+      allowedActions: task.status === 'pending' ? ['start'] : ['submit'],
+      blockedReason: null
+    }
+  }
 
   if (task.role === 'A') {
     if (task.status === 'pending') return { allowedActions: ['start'], blockedReason: null }
@@ -342,7 +393,9 @@ function parseTreatmentResult(value: unknown): SubmitTreatmentTaskRequest {
 
 function assignedTask(workOrder: WorkOrder, task: WorkOrderTask): AssignedWorkOrderTask {
   const riskText = task.risks.join('、')
-  const voiceText = `${task.assigneeName}您有新工单。工单编号${workOrder.orderNumber}，故障类型：${workOrder.faultType}。您的任务：${task.description}风险点：${riskText}。请规范操作，注意安全。`
+  const voiceText = workOrder.tiltAdjustment
+    ? seasonalTaskVoice(workOrder.tiltAdjustment)
+    : `${task.assigneeName}您有新工单。工单编号${workOrder.orderNumber}，故障类型：${workOrder.faultType}。您的任务：${task.description}风险点：${riskText}。请规范操作，注意安全。`
   return {
     ...task,
     tiltAdjustment: workOrder.tiltAdjustment,
@@ -382,13 +435,193 @@ export class WorkOrderService {
     return this.plcClock.now()
   }
 
+  uploadTaskPhoto(taskId: string, value: unknown): TaskPhoto {
+    const { task } = getTaskContext(this.options.database, taskId)
+    if (task.status !== 'in_progress')
+      throw new WorkOrderRequestError(
+        409,
+        'TASK_GATE_BLOCKED',
+        '请开始任务后上传照片，已提交的任务不可修改'
+      )
+    if (
+      !isRecord(value) ||
+      typeof value['data'] !== 'string' ||
+      typeof value['fileName'] !== 'string'
+    )
+      throw new WorkOrderRequestError(400, 'INVALID_PHOTO', '照片内容不完整')
+    const encoded = value['data']
+    if (
+      encoded.length > Math.ceil(MAX_TASK_PHOTO_BYTES / 3) * 4 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)
+    )
+      throw new WorkOrderRequestError(400, 'INVALID_PHOTO', '照片格式无效或超过3MB')
+    const data = Buffer.from(encoded, 'base64')
+    if (!data.length || data.length > MAX_TASK_PHOTO_BYTES || data.toString('base64') !== encoded)
+      throw new WorkOrderRequestError(400, 'INVALID_PHOTO', '照片编码无效')
+    const mimeType = data.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))
+      ? 'image/jpeg'
+      : data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+        ? 'image/png'
+        : data.subarray(0, 4).toString() === 'RIFF' && data.subarray(8, 12).toString() === 'WEBP'
+          ? 'image/webp'
+          : undefined
+    if (!mimeType)
+      throw new WorkOrderRequestError(400, 'INVALID_PHOTO', '只支持 JPEG、PNG 或 WebP 图片')
+    const fileName =
+      value['fileName']
+        .replace(/[\p{Cc}/\\]/gu, '_')
+        .slice(0, 160)
+        .trim() || '现场照片'
+    const photo: TaskPhoto = {
+      id: randomUUID(),
+      taskId,
+      fileName,
+      mimeType,
+      size: data.length,
+      createdAt: this.now().toISOString()
+    }
+    this.options.database.runInTransaction(() => {
+      if (this.options.database.listTaskPhotos(taskId).length >= MAX_TASK_PHOTOS)
+        throw new WorkOrderRequestError(
+          400,
+          'PHOTO_LIMIT',
+          `每个任务最多上传${MAX_TASK_PHOTOS}张照片`
+        )
+      this.options.database.insertTaskPhoto(photo, data)
+    })
+    return photo
+  }
+
+  listTaskPhotos(taskId: string): TaskPhoto[] {
+    getTaskContext(this.options.database, taskId)
+    return this.options.database.listTaskPhotos(taskId)
+  }
+
+  getTaskPhoto(id: string): TaskPhoto & { data: Buffer } {
+    const photo = this.options.database.getTaskPhoto(id)
+    if (!photo) throw new WorkOrderRequestError(404, 'PHOTO_NOT_FOUND', '照片不存在')
+    return photo
+  }
+
+  deleteTaskPhoto(taskId: string, photoId: string): void {
+    const { task } = getTaskContext(this.options.database, taskId)
+    const photo = this.getTaskPhoto(photoId)
+    if (photo.taskId !== task.id)
+      throw new WorkOrderRequestError(400, 'INVALID_PHOTO', '照片不属于当前任务')
+    if (task.status !== 'in_progress' || task.result?.photos?.some((item) => item.id === photoId))
+      throw new WorkOrderRequestError(409, 'PHOTO_SUBMITTED', '已回传的照片不能删除')
+    this.options.database.deleteTaskPhoto(photoId)
+  }
+
+  private submissionPhotos(task: WorkOrderTask, value: unknown): TaskPhoto[] {
+    const ids = isRecord(value) ? value['photoIds'] : undefined
+    if (
+      ids !== undefined &&
+      (!Array.isArray(ids) ||
+        ids.length > MAX_TASK_PHOTOS ||
+        ids.some((id) => typeof id !== 'string'))
+    )
+      throw new WorkOrderRequestError(400, 'INVALID_PHOTO', '照片列表无效')
+    const selected = [
+      ...new Set([
+        ...(task.result?.photos ?? []).map((photo) => photo.id),
+        ...((ids as string[] | undefined) ?? [])
+      ])
+    ]
+    if (selected.length > MAX_TASK_PHOTOS)
+      throw new WorkOrderRequestError(400, 'PHOTO_LIMIT', '照片数量超出限制')
+    const stored = this.options.database.listTaskPhotos(task.id)
+    return selected.map((id) => {
+      const photo = stored.find((item) => item.id === id)
+      if (!photo)
+        throw new WorkOrderRequestError(
+          400,
+          'INVALID_PHOTO',
+          '照片不存在或不属于当前任务，请重新上传'
+        )
+      return photo
+    })
+  }
+
+  private parseSeasonalResult(
+    task: WorkOrderTask,
+    plan: TiltAdjustmentPlan,
+    value: unknown,
+    photos: TaskPhoto[]
+  ): SeasonalInspectionResult {
+    if (!isRecord(value)) throw new WorkOrderRequestError(400, 'INVALID_REQUEST', '请填写作业表单')
+    const count = seasonalChecklist(task.role, plan).length
+    const checks = value['checks']
+    if (
+      !Array.isArray(checks) ||
+      checks.length !== count ||
+      checks.some((checked) => checked !== true)
+    )
+      throw new WorkOrderRequestError(409, 'TASK_RESULT_NOT_READY', '请逐项检查并全部确认后提交')
+    const signature = readOptionalText(value['signature'], 'signature')
+    if (!signature || signature.length > 60)
+      throw new WorkOrderRequestError(400, 'INVALID_SIGNATURE', '请填写签字姓名（最多60字）')
+    const remarks = value['remarks'] ?? Array(count).fill('')
+    if (
+      !Array.isArray(remarks) ||
+      remarks.length !== count ||
+      remarks.some((text) => typeof text !== 'string' || text.length > 500)
+    )
+      throw new WorkOrderRequestError(400, 'INVALID_REQUEST', '表格备注格式无效')
+    if (!photos.length)
+      throw new WorkOrderRequestError(409, 'TASK_RESULT_NOT_READY', '请至少上传一张现场照片')
+    const result: SeasonalInspectionResult = {
+      kind: 'seasonal_inspection',
+      role: task.role,
+      checks,
+      remarks,
+      signature,
+      signedAt: this.now().toISOString()
+    }
+    if (task.role === 'B') {
+      const angle = readNumber(value['beforeAngle'], NaN, 'beforeAngle')
+      if (!Number.isFinite(angle) || angle < 0 || angle > 90)
+        throw new WorkOrderRequestError(400, 'INVALID_REQUEST', '请填写0至90度之间的调整前实测倾角')
+      result.beforeAngle = angle
+      result.photoReference =
+        readOptionalText(value['photoReference'], 'photoReference')?.slice(0, 160) ||
+        photos.map((photo) => photo.fileName).join('、')
+    }
+    if (task.role === 'C') {
+      const angle = readNumber(value['adjustedAngle'], NaN, 'adjustedAngle')
+      const advice = getPlanAdvice(plan)
+      if (!Number.isFinite(angle) || angle < advice.minAngle || angle > advice.maxAngle)
+        throw new WorkOrderRequestError(
+          400,
+          'INVALID_REQUEST',
+          `实际倾角必须为${advice.minAngle}至${advice.maxAngle}度`
+        )
+      result.adjustedAngle = angle
+    }
+    if (task.role === 'A') {
+      const samples = readNumber(value['sampleCount'], NaN, 'sampleCount')
+      if (!Number.isInteger(samples) || samples < 1 || samples > 10000)
+        throw new WorkOrderRequestError(400, 'INVALID_REQUEST', '请填写有效的抽检点位数量')
+      const archive = readOptionalText(value['archiveNumber'], 'archiveNumber')
+      if (!archive || archive.length > 160)
+        throw new WorkOrderRequestError(400, 'INVALID_REQUEST', '请填写档案编号（最多160字）')
+      result.sampleCount = samples
+      result.archiveNumber = archive
+    }
+    return result
+  }
+
   createDraft(value: unknown): CreateWorkOrderDraftResponse {
     if (value !== undefined && !isRecord(value)) {
       throw new WorkOrderRequestError(400, 'INVALID_REQUEST', '请求体必须是对象')
     }
     const input = (value ?? {}) as CreateWorkOrderDraftRequest
     if (input.tiltAdjustment !== undefined && !isTiltAdjustmentPlan(input.tiltAdjustment)) {
-      throw new WorkOrderRequestError(400, 'INVALID_REQUEST', '工单信息不完整，请重新上传资料。')
+      throw new WorkOrderRequestError(
+        400,
+        'INVALID_REQUEST',
+        '工单信息不完整，请重新提交需求或资料。'
+      )
     }
     const tiltAdjustment = input.tiltAdjustment
     const latestDevice = this.options
@@ -402,10 +635,14 @@ export class WorkOrderService {
     const stringName = readOptionalText(input.stringName, 'stringName') ?? '1号光伏组串'
     const componentName = readOptionalText(input.componentName, 'componentName') ?? '1号组件'
     const faultType = tiltAdjustment
-      ? `${getTiltAdvice(tiltAdjustment.month).season}倾角调整`
+      ? tiltAdjustment.analysisVersion === 2
+        ? `支架倾角季节性调整-${getPlanAdvice(tiltAdjustment).season}模式`
+        : `${getPlanAdvice(tiltAdjustment).season}倾角调整`
       : (readOptionalText(input.faultType, 'faultType') ?? '组件热斑')
     const handlingSuggestion = tiltAdjustment
-      ? getTiltReply(tiltAdjustment.month)
+      ? tiltAdjustment.analysisVersion === 2
+        ? SEASONAL_RESULT.join('\n')
+        : getTiltReply(tiltAdjustment.month)
       : (readOptionalText(input.handlingSuggestion, 'handlingSuggestion') ??
         '隔离组串、现场确认并清理或更换1号组件、复测')
     const priority = input.priority ?? (tiltAdjustment ? 'normal' : 'urgent')
@@ -445,12 +682,16 @@ export class WorkOrderService {
           tiltAdjustment &&
           (existing.tiltAdjustment?.month !== tiltAdjustment.month ||
             existing.tiltAdjustment.fileName !== tiltAdjustment.fileName ||
-            existing.tiltAdjustment.fileSize !== tiltAdjustment.fileSize)
+            existing.tiltAdjustment.fileSize !== tiltAdjustment.fileSize ||
+            existing.tiltAdjustment.userRequest !== tiltAdjustment.userRequest ||
+            existing.tiltAdjustment.analysisVersion !== tiltAdjustment.analysisVersion ||
+            existing.tiltAdjustment.analysisDate !== tiltAdjustment.analysisDate ||
+            existing.tiltAdjustment.fieldWorkflowVersion !== tiltAdjustment.fieldWorkflowVersion)
         ) {
           throw new WorkOrderRequestError(
             409,
             'REQUEST_CONFLICT',
-            '该上传请求已生成不同内容的工单，请重新上传资料'
+            '该请求已生成不同内容的工单，请重新提交需求或资料'
           )
         }
         return {
@@ -461,7 +702,13 @@ export class WorkOrderService {
       }
 
       const id = randomUUID()
-      const orderNumber = this.options.database.nextWorkOrderNumber(shanghaiDatePart(now))
+      const orderNumber =
+        tiltAdjustment?.analysisVersion === 2
+          ? this.options.database.nextWorkOrderNumber(
+              tiltAdjustment.analysisDate!.replaceAll('-', ''),
+              'NG-GQ'
+            )
+          : this.options.database.nextWorkOrderNumber(shanghaiDatePart(now))
       const templates = tiltAdjustment ? tiltTaskTemplates(tiltAdjustment) : TASK_TEMPLATES
       const tasks: WorkOrderTask[] = templates.map((template) => ({
         id: randomUUID(),
@@ -480,7 +727,10 @@ export class WorkOrderService {
         tiltAdjustment,
         id,
         orderNumber,
-        stationName,
+        stationName:
+          tiltAdjustment?.analysisVersion === 2
+            ? '光明村农光互补智慧农业一体化运维项目'
+            : stationName,
         deviceId,
         stringName,
         componentName,
@@ -682,7 +932,10 @@ export class WorkOrderService {
           task.blockedReason ?? '当前不能提交作业前检查'
         )
       }
-      const previous = task.result?.role === 'B' ? task.result : undefined
+      const previous =
+        task.result?.role === 'B' && !isSeasonalInspectionResult(task.result)
+          ? task.result
+          : undefined
       const sameResult =
         previous?.isolationConfirmed === input.isolationConfirmed &&
         previous?.voltageTestPassed === input.voltageTestPassed &&
@@ -693,6 +946,7 @@ export class WorkOrderService {
       const timestamp = this.now().toISOString()
       const passed =
         input.isolationConfirmed && input.voltageTestPassed && input.safetyMeasuresConfirmed
+      const photos = this.submissionPhotos(task, value)
       task.result = {
         role: 'B',
         isolationConfirmed: input.isolationConfirmed,
@@ -700,6 +954,7 @@ export class WorkOrderService {
         safetyMeasuresConfirmed: input.safetyMeasuresConfirmed,
         checkpointNotes: input.notes
       }
+      if (photos.length) task.result.photos = photos
       task.checkpointAt = passed ? timestamp : null
       task.updatedAt = timestamp
       workOrder.updatedAt = timestamp
@@ -739,11 +994,18 @@ export class WorkOrderService {
         )
       }
 
-      if (task.role === 'A') {
+      const photos = this.submissionPhotos(task, value)
+      if (hasSeasonalFieldWorkflow(workOrder.tiltAdjustment)) {
+        task.result = this.parseSeasonalResult(task, workOrder.tiltAdjustment!, value, photos)
+      } else if (task.role === 'A') {
         task.result = { role: 'A', ...parseSafetyMonitorResult(value) }
       } else if (task.role === 'B') {
         const checkpoint = task.result
-        if (checkpoint?.role !== 'B' || !isSafetyCheckpointComplete(task)) {
+        if (
+          checkpoint?.role !== 'B' ||
+          isSeasonalInspectionResult(checkpoint) ||
+          !isSafetyCheckpointComplete(task)
+        ) {
           throw new WorkOrderRequestError(409, 'TASK_GATE_BLOCKED', '作业前安全检查尚未通过')
         }
         const restoration = parseIsolationResult(value)
@@ -757,7 +1019,7 @@ export class WorkOrderService {
       } else if (workOrder.tiltAdjustment) {
         if (!isRecord(value))
           throw new WorkOrderRequestError(400, 'INVALID_REQUEST', '请求体不能为空')
-        const advice = getTiltAdvice(workOrder.tiltAdjustment.month)
+        const advice = getPlanAdvice(workOrder.tiltAdjustment)
         const adjustedAngle = readNumber(value['adjustedAngle'], NaN, 'adjustedAngle')
         if (
           !Number.isFinite(adjustedAngle) ||
@@ -790,6 +1052,7 @@ export class WorkOrderService {
       } else {
         task.result = { role: 'C', ...parseTreatmentResult(value) } satisfies TreatmentTaskResult
       }
+      if (photos.length) task.result.photos = photos
 
       const timestamp = this.now().toISOString()
       task.status = 'submitted'
@@ -1043,6 +1306,44 @@ export function registerWorkOrderRoutes(app: FastifyInstance, service: WorkOrder
   }
   app.get('/api/tasks', listTasks)
   app.get('/api/me/tasks', listTasks)
+
+  app.get('/api/tasks/:id/photos', async (request, reply) => {
+    try {
+      return { items: service.listTaskPhotos((request.params as { id: string }).id) }
+    } catch (error) {
+      return handleRouteError(reply, error)
+    }
+  })
+  app.post('/api/tasks/:id/photos', { bodyLimit: 5 * 1024 * 1024 }, async (request, reply) => {
+    try {
+      return reply.code(201).send({
+        photo: service.uploadTaskPhoto((request.params as { id: string }).id, request.body)
+      })
+    } catch (error) {
+      return handleRouteError(reply, error)
+    }
+  })
+  app.delete('/api/tasks/:id/photos/:photoId', async (request, reply) => {
+    try {
+      const { id, photoId } = request.params as { id: string; photoId: string }
+      service.deleteTaskPhoto(id, photoId)
+      return { deleted: true }
+    } catch (error) {
+      return handleRouteError(reply, error)
+    }
+  })
+  app.get('/api/task-photos/:id', async (request, reply) => {
+    try {
+      const photo = service.getTaskPhoto((request.params as { id: string }).id)
+      return reply
+        .header('Content-Type', photo.mimeType)
+        .header('X-Content-Type-Options', 'nosniff')
+        .header('Cache-Control', 'private, max-age=3600')
+        .send(photo.data)
+    } catch (error) {
+      return handleRouteError(reply, error)
+    }
+  })
 
   app.post('/api/tasks/:id/start', async (request, reply) => {
     try {

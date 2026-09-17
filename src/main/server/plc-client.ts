@@ -14,7 +14,7 @@ export class ModbusException extends Error {
   }
 }
 
-// One connection per explicit page operation; no automatic write retries.
+// Callers serialize complete operations; writes are never automatically retried.
 export class PlcClient {
   private socket?: Socket
   private transactionId = 0
@@ -25,6 +25,10 @@ export class PlcClient {
     private readonly connection: PlcConnection,
     private readonly timeoutMs = 2500
   ) {}
+
+  get connected(): boolean {
+    return this.socket?.readyState === 'open' && !this.failure
+  }
 
   async connect(): Promise<void> {
     await new Promise<void>((resolve, reject) => {
@@ -60,7 +64,8 @@ export class PlcClient {
     const socket = this.socket
     if (!socket || socket.destroyed || this.failure) throw this.failure ?? new Error('PLC未连接')
     if (this.pending) throw new Error('已有PLC请求正在执行')
-    const transactionId = ++this.transactionId
+    this.transactionId = (this.transactionId % 0xffff) + 1
+    const transactionId = this.transactionId
     const request = Buffer.alloc(7 + pdu.length)
     request.writeUInt16BE(transactionId, 0)
     request.writeUInt16BE(pdu.length + 1, 4)

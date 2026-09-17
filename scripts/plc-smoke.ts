@@ -4,7 +4,7 @@ import Fastify, { type LightMyRequestResponse } from 'fastify'
 import { PlcTcpCollector } from '../src/main/server/collector'
 import { registerPlcRoutes } from '../src/main/server/plc-routes'
 import type { TelemetrySnapshot } from '../src/shared/contracts'
-import type { PlcClockValues, PlcWriteResponse } from '../src/shared/plc'
+import { PLC_POWER_POINTS, type PlcClockValues, type PlcWriteResponse } from '../src/shared/plc'
 
 type Fault =
   | 'none'
@@ -25,15 +25,36 @@ async function run(): Promise<void> {
   pvRawValues.forEach((value, index) => memory.writeUInt16BE(value, 400 + index * 2))
   memory.writeFloatBE(52, 500)
   memory.writeFloatBE(-5, 504)
+  // Literal byte addresses from PLCTags.xlsx; UInt values are integer MW.
+  const powerFixture = [
+    [110, 12],
+    [112, 6],
+    [114, 0],
+    [116, 32768],
+    [118, 65535],
+    [200, 19],
+    [210, 23]
+  ]
+  powerFixture.forEach(([address, value]) => memory.writeUInt16BE(value, address))
+  const expectedPowers = {
+    photovoltaicPower: 12,
+    storageRatedPower: 6,
+    primaryLoadPower: 0,
+    secondaryLoadPower: 32768,
+    tertiaryLoadPower: 65535,
+    totalLoadPower: 19,
+    renewableSupplyPower: 23
+  }
   const expectedValues = {
+    ...expectedPowers,
     pv1Voltage: 0,
-    pv1Current: 0.001,
-    pv2Voltage: 12.345,
-    pv2Current: 19,
-    pv3Voltage: 32.768,
-    pv3Current: 45.678,
-    pv4Voltage: 65.534,
-    pv4Current: 65.535,
+    pv1Current: 0.01,
+    pv2Voltage: 123.45,
+    pv2Current: 190,
+    pv3Voltage: 327.68,
+    pv3Current: 456.78,
+    pv4Voltage: 655.34,
+    pv4Current: 655.35,
     batteryVoltage: 52,
     batteryCurrent: -5
   }
@@ -59,6 +80,7 @@ async function run(): Promise<void> {
         const fn = request[7]
         const address = request.readUInt16BE(8)
         const quantity = request.readUInt16BE(10)
+        assert.ok(quantity <= 125, 'FC03 must not span more than 125 registers')
         let response: Buffer
         if (fn === 3) {
           if (fault === 'read-rejected') response = Buffer.from([0x83, 2])
@@ -160,26 +182,27 @@ async function run(): Promise<void> {
     assert.deepEqual(
       collected.devices.map(({ voltage, current }) => ({ voltage, current })),
       [
-        { voltage: 0, current: 0.001 },
-        { voltage: 12.345, current: 19 },
-        { voltage: 32.768, current: 45.678 },
-        { voltage: 65.534, current: 65.535 },
+        { voltage: 0, current: 0.01 },
+        { voltage: 123.45, current: 190 },
+        { voltage: 327.68, current: 456.78 },
+        { voltage: 655.34, current: 655.35 },
         { voltage: 52, current: -5 }
       ]
     )
     assert.equal(collected.plcClock?.timestamp, '2026-09-07T12:30:45.000')
+    assert.deepEqual(collected.powers, expectedPowers)
     assert.equal(writes, 0)
     console.log(
-      'PASS: all eight WORD addresses and ÷1000 in API and live collector, battery and clock'
+      'PASS: all eight WORD addresses and ÷100 in API and live collector, battery and clock'
     )
 
     const original = Buffer.from(memory)
-    const single = await post('write', { connection, values: { pv1Voltage: 12.345 } })
+    const single = await post('write', { connection, values: { pv1Voltage: 123.45 } })
     assert.equal(single.statusCode, 200)
     const singleResult = single.json<PlcWriteResponse>()
     assert.equal(singleResult.ok, true)
-    assert.equal(singleResult.results[0].actual, 12.345)
-    assert.equal(singleResult.snapshot?.values.pv1Voltage, 12.345)
+    assert.equal(singleResult.results[0].actual, 123.45)
+    assert.equal(singleResult.snapshot?.values.pv1Voltage, 123.45)
     assert.equal(memory.readUInt16BE(400), 12345)
     assert.equal(writes, 1, 'WORD is one single-register FC16 write')
     assert.deepEqual(memory.subarray(0, 400), original.subarray(0, 400))
@@ -205,34 +228,35 @@ async function run(): Promise<void> {
       clock
     })
     assert.equal(multi.json().ok, true)
-    assert.equal(memory.readUInt16BE(406), 1250)
+    assert.equal(memory.readUInt16BE(406), 125)
     assert.equal(memory.readFloatBE(504), -1.25)
-    assert.deepEqual([...memory.subarray(600, 608)], [7, 236, 2, 29, 23, 58, 57, 3])
-    assert.equal(writes, 4, 'entire clock is one four-register FC16 write')
+    assert.deepEqual(memory.subarray(600, 608), Buffer.from([7, 236, 2, 29, 23, 58, 57, 3]))
+    assert.deepEqual(multi.json().snapshot.clock, clock)
+    assert.equal(writes, 4, 'The entire clock is written in a single request')
     assert.ok(events.includes('plc.write-requested') && events.includes('plc.write-completed'))
 
     const offsetConnection = { ...connection, registerAddressOffset: 10 }
     const offsetWrite = await post('write', {
       connection: offsetConnection,
-      values: { pv4Current: 63.999, batteryVoltage: 51.5 }
+      values: { pv4Current: 639.99, batteryVoltage: 51.5 }
     })
     assert.equal(offsetWrite.json().ok, true)
     assert.equal(memory.readUInt16BE(434), 63999)
-    assert.equal(offsetWrite.json().snapshot.values.pv4Current, 63.999)
+    assert.equal(offsetWrite.json().snapshot.values.pv4Current, 639.99)
     assert.equal(memory.readFloatBE(520), 51.5)
     console.log(
-      'PASS: multiple points, negative and zero values, atomic clock, register offset, audit events'
+      'PASS: multiple points, negative and zero values, atomic clock write, register offset, audit events'
     )
 
     const allValues = {
-      pv1Voltage: 65.535,
+      pv1Voltage: 655.35,
       pv1Current: 0,
-      pv2Voltage: 1.001,
-      pv2Current: 19.001,
-      pv3Voltage: 32.768,
-      pv3Current: 45.678,
-      pv4Voltage: 65.534,
-      pv4Current: 65.535
+      pv2Voltage: 10.01,
+      pv2Current: 190.01,
+      pv3Voltage: 327.68,
+      pv3Current: 456.78,
+      pv4Voltage: 655.34,
+      pv4Current: 655.35
     }
     const beforeAll = Buffer.from(memory)
     const allWritten = (
@@ -248,16 +272,49 @@ async function run(): Promise<void> {
     assert.deepEqual(memory.subarray(416), beforeAll.subarray(416))
     console.log('PASS: all eight writes, zero and unsigned upper boundary, decimal precision')
 
+    const beforePowers = Buffer.from(memory)
+    const powerValues = {
+      ...expectedPowers,
+      primaryLoadPower: 3,
+      secondaryLoadPower: 5,
+      tertiaryLoadPower: 4
+    }
+    const powerWritten = (
+      await post('write', { connection, values: powerValues })
+    ).json<PlcWriteResponse>()
+    assert.equal(powerWritten.ok, true)
+    assert.equal(powerWritten.results.length, 7)
+    const expectedMemory = Buffer.from(beforePowers)
+    for (const point of PLC_POWER_POINTS) {
+      const value = powerValues[point.id]
+      expectedMemory.writeUInt16BE(value, point.register * 2)
+      assert.equal(powerWritten.snapshot?.values[point.id], value)
+    }
+    assert.deepEqual(memory, expectedMemory, 'Power writes must preserve every other byte')
+    const powerOffset = (
+      await post('write', { connection: offsetConnection, values: { totalLoadPower: 65535 } })
+    ).json<PlcWriteResponse>()
+    assert.equal(powerOffset.ok, true)
+    assert.equal(memory.readUInt16BE(220), 65535)
+    assert.equal(powerOffset.snapshot?.values.totalLoadPower, 65535)
+    console.log(
+      'PASS: all seven UInt power addresses, integer MW, unsigned bounds, offsets and untouched bytes'
+    )
+
     const beforeInvalid = requests
     for (const payload of [
       { connection, values: { arbitrary: 1 } },
       { connection, values: { pv1Voltage: null } },
       { connection, values: { pv1Voltage: '' } },
       { connection, values: { pv1Voltage: 1e40 } },
-      { connection, values: { pv1Voltage: -0.001 } },
-      { connection, values: { pv1Current: 65.536 } },
-      { connection, values: { pv4Current: 1.2345 } },
+      { connection, values: { pv1Voltage: -0.01 } },
+      { connection, values: { pv1Current: 655.36 } },
+      { connection, values: { pv4Current: 1.234 } },
       { connection, values: { batteryVoltage: 1e40 } },
+      { connection, values: { photovoltaicPower: 1.5 } },
+      { connection, values: { photovoltaicPower: 1.000000001 } },
+      { connection, values: { storageRatedPower: -1 } },
+      { connection, values: { primaryLoadPower: 65536 } },
       { connection, values: { pv1Voltage: 10, pv4Current: -1 } },
       { connection, values: {} },
       { connection, values: { pv1Voltage: 10 }, clock: { ...clock, year: 2027 } },
@@ -318,7 +375,7 @@ async function run(): Promise<void> {
       dropped.results.map((result) => result.status),
       ['unknown', 'not_written']
     )
-    assert.equal(memory.readUInt16BE(402), 9000, 'PLC may apply write despite lost acknowledgement')
+    assert.equal(memory.readUInt16BE(402), 900, 'PLC may apply write despite lost acknowledgement')
     assert.equal(writes, 1, 'uncertain write must never auto retry')
     fault = 'none'
     assert.equal(
@@ -335,7 +392,7 @@ async function run(): Promise<void> {
       mismatch.results.map((result) => result.status),
       ['mismatch', 'not_written']
     )
-    assert.equal(mismatch.results[0].actual, 0.777)
+    assert.equal(mismatch.results[0].actual, 7.77)
     fault = 'bad-ack'
     assert.equal(
       (await post('write', { connection, values: { pv1Voltage: 50 } })).json().results[0].status,

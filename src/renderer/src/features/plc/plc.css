@@ -3,7 +3,7 @@
   margin: 0 auto;
   padding: 40px 36px 24px;
   color: #dce8f5;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .plc-page button,
@@ -73,7 +73,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 1.6px;
   color: #84a6be;
 }
@@ -85,11 +85,11 @@
   background: #155370;
   color: #6ce0ff;
   border-radius: 6px;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 800;
 }
 .plc-header h1 {
-  font-size: 30px;
+  font-size: 1.875rem;
   font-weight: 650;
   letter-spacing: 0.5px;
   margin: 18px 0 8px;
@@ -102,7 +102,7 @@
   margin: 0;
 }
 .plc-tag {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   color: #f0bd6e;
   border: 1px solid #6a542d;
@@ -116,7 +116,7 @@
   gap: 10px;
 }
 .plc-share a {
-  font-size: 12px;
+  font-size: 0.75rem;
   text-decoration: none;
   overflow-wrap: anywhere;
 }
@@ -141,12 +141,12 @@
 }
 .plc-section-heading h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 1.0625rem;
   font-weight: 600;
 }
 .plc-step {
   color: #62bbdf;
-  font-size: 11px;
+  font-size: 0.6875rem;
   background: #15364b;
   padding: 4px 6px;
   border-radius: 4px;
@@ -154,10 +154,10 @@
 }
 .plc-count {
   color: #7f9ab0;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .plc-state {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #8eabc1;
 }
 .plc-state::before {
@@ -187,7 +187,7 @@
   flex-direction: column;
   gap: 9px;
   color: #8eabc1;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .plc-connection-fields button {
   min-height: 42px;
@@ -197,7 +197,7 @@
 }
 .plc-connection-note {
   color: #7390a8;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.7;
   padding: 0 24px;
   margin: 15px 0 20px;
@@ -212,7 +212,7 @@
   background: #102a3b;
   color: #9fcee5;
   margin: 0 0 20px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.7;
 }
 .plc-notice > span {
@@ -222,7 +222,7 @@
   height: 18px;
   border: 1px solid currentColor;
   border-radius: 50%;
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 .plc-notice--success {
   color: #8ed9c6;
@@ -240,7 +240,7 @@
   gap: 16px;
 }
 .plc-batch > span {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #8da7bb;
 }
 .plc-table-scroll {
@@ -254,7 +254,7 @@
 }
 .plc-table th {
   padding: 12px 14px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   color: #8bacc4;
   background: #11283b;
@@ -267,7 +267,7 @@
 .plc-table td {
   padding: 12px 14px;
   border-bottom: 1px solid #172e41;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .plc-table .plc-group-start:not(:first-child) td {
   border-top: 1px solid #2b455a;
@@ -280,22 +280,22 @@
 }
 .plc-type {
   display: block;
-  font-size: 10px;
+  font-size: 0.625rem;
   color: #6f8ba2;
   margin-top: 5px;
 }
 .plc-table code {
   color: #a5bdd0;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .plc-table .plc-current {
   color: #80d2eb;
-  font-size: 17px;
+  font-size: 1.0625rem;
   font-variant-numeric: tabular-nums;
 }
 .plc-current small {
   color: #738fa4;
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 .plc-value-input {
   display: flex;
@@ -311,7 +311,7 @@
   position: absolute;
   right: 10px;
   color: #7e9caf;
-  font-size: 11px;
+  font-size: 0.6875rem;
   pointer-events: none;
 }
 .plc-value-input input::-webkit-inner-spin-button {
@@ -320,13 +320,13 @@
 .plc-page button.plc-write-one {
   color: #7cd3f2;
   padding: 7px 13px;
-  font-size: 12px;
+  font-size: 0.75rem;
   background: #103046;
   border-color: #24516b;
 }
 .plc-result {
   color: #6e899e;
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 .plc-result--verified {
   color: #70d3b5;
@@ -342,12 +342,12 @@
   gap: 20px;
   padding: 15px 24px;
   color: #6f8da4;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.7;
 }
 .plc-clock-current {
   color: #8cb4cc;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
 }
 .plc-clock-fields {
@@ -357,7 +357,7 @@
   padding: 0 24px !important;
 }
 .plc-clock-fields code {
-  font-size: 10px;
+  font-size: 0.625rem;
   color: #65849b;
 }
 .plc-clock-actions {
@@ -370,16 +370,17 @@
 .plc-clock-actions p {
   margin: 0;
   color: #7393aa;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.8;
 }
 .plc-clock-actions > div {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 .plc-field-error {
   color: #efb0a0;
-  font-size: 12px;
+  font-size: 0.75rem;
   margin: 0 24px 20px;
 }
 .plc-operation-results ul {
@@ -398,11 +399,11 @@
   padding-top: 3px;
 }
 .plc-operation-results li strong {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
 }
 .plc-operation-results li p {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #859fb4;
   margin: 6px 0 0;
   overflow-wrap: anywhere;
@@ -411,7 +412,7 @@
   display: flex;
   justify-content: space-between;
   gap: 20px;
-  font-size: 10px;
+  font-size: 0.625rem;
   color: #5e7e95;
   padding: 8px 2px;
 }
@@ -440,7 +441,7 @@
     flex-direction: column;
   }
   .plc-header h1 {
-    font-size: 25px;
+    font-size: 1.5625rem;
   }
   .plc-share {
     align-items: flex-start;

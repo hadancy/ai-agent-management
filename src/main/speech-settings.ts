@@ -1,10 +1,13 @@
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import {
+  DEFAULT_SPEECH_VOICE,
   resolveSpeechApiHost,
   type SpeechSettingsInput,
   type SpeechSettingsStatus
 } from '../shared/speech-settings'
+
+const VOICE_DEFAULTS_VERSION = 2
 
 export interface SpeechSecretStorage {
   available: () => boolean
@@ -13,7 +16,11 @@ export interface SpeechSecretStorage {
 }
 
 export class SpeechSettingsStore {
-  private settings: SpeechSettingsInput = { mode: 'offline', region: 'beijing', voice: 'Cherry' }
+  private settings: SpeechSettingsInput = {
+    mode: 'offline',
+    region: 'beijing',
+    voice: DEFAULT_SPEECH_VOICE
+  }
   private savedKey = ''
   private warning = ''
   private version = 0
@@ -31,6 +38,12 @@ export class SpeechSettingsStore {
     try {
       const data = JSON.parse(await readFile(this.filename, 'utf8'))
       this.settings = this.validate(data)
+      // Upgrade the old default once; explicit choices saved by this version are retained.
+      if (
+        (data.voiceDefaultsVersion === undefined && this.settings.voice === 'Cherry') ||
+        (data.voiceDefaultsVersion === 1 && this.settings.voice === 'Neil')
+      )
+        this.settings.voice = DEFAULT_SPEECH_VOICE
       if (typeof data.encryptedApiKey === 'string' && data.encryptedApiKey) {
         if (!this.secrets.available()) throw new Error('ENCRYPTION_UNAVAILABLE')
         this.savedKey = this.secrets.decrypt(Buffer.from(data.encryptedApiKey, 'base64'))
@@ -49,7 +62,7 @@ export class SpeechSettingsStore {
     if (!['offline', 'qwen'].includes(data.mode) || !['beijing', 'singapore'].includes(data.region))
       throw new Error('请选择有效的语音模式和服务地域。')
     if (typeof data.voice !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(data.voice.trim()))
-      throw new Error('请填写有效的系统音色名称，例如 Cherry。')
+      throw new Error(`请填写有效的系统音色名称，例如 ${DEFAULT_SPEECH_VOICE}。`)
     if (data.apiHost !== undefined && typeof data.apiHost !== 'string')
       throw new Error('API Host 格式不正确。')
     const apiHost = data.apiHost?.trim().toLowerCase() ?? ''
@@ -108,9 +121,15 @@ export class SpeechSettingsStore {
     const temporary = `${this.filename}.tmp`
     try {
       await mkdir(dirname(this.filename), { recursive: true })
-      await writeFile(temporary, JSON.stringify({ ...next, encryptedApiKey: encoded }), {
-        mode: 0o600
-      })
+      await writeFile(
+        temporary,
+        JSON.stringify({
+          ...next,
+          voiceDefaultsVersion: VOICE_DEFAULTS_VERSION,
+          encryptedApiKey: encoded
+        }),
+        { mode: 0o600 }
+      )
       await rename(temporary, this.filename)
     } catch {
       throw new Error('语音配置保存失败，请检查管理端的数据目录权限。')

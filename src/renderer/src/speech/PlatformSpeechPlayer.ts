@@ -28,12 +28,26 @@ function silence(): Blob {
 
 export class PlatformSpeechPlayer {
   private static active?: PlatformSpeechPlayer
+  private static readonly settingsRevisions = new Map<string, string>()
+
+  static syncSettings(serviceOrigin: string, revision: string): void {
+    const previous = this.settingsRevisions.get(serviceOrigin)
+    this.settingsRevisions.set(serviceOrigin, revision)
+    if (previous === revision) return
+    const player = this.active
+    if (player?.serviceOrigin !== serviceOrigin || !player.currentRequest) return
+    const { text, completed } = player.currentRequest
+    // Also refresh speech started before the first settings event: its voice may already be stale.
+    // Late responses from the old voice are discarded.
+    player.play(text, completed)
+  }
   private readonly audio = new Audio()
   private controller?: AbortController
   private timer?: ReturnType<typeof setTimeout>
   private url?: string
   private generation = 0
   private ready = false
+  private currentRequest?: { text: string; completed: () => void }
 
   constructor(
     private readonly serviceOrigin: string,
@@ -49,6 +63,7 @@ export class PlatformSpeechPlayer {
     this.controller = undefined
     if (PlatformSpeechPlayer.active === this) PlatformSpeechPlayer.active = undefined
     this.ready = false
+    this.currentRequest = undefined
     this.audio.onplaying = null
     this.audio.onended = null
     this.audio.onerror = null
@@ -83,16 +98,17 @@ export class PlatformSpeechPlayer {
     }
     this.stop()
     PlatformSpeechPlayer.active = this
+    this.currentRequest = { text, completed }
     if (userInitiated) this.primeAudio()
     void this.playAudio(text, completed, this.generation)
   }
 
   private async playAudio(text: string, completed: () => void, generation: number): Promise<void> {
     if (generation !== this.generation) return
-    this.update({ status: 'loading', message: '平台正在生成中文语音…' })
+    this.update({ status: 'loading', message: '正在加载音频…' })
     const controller = new AbortController()
     this.controller = controller
-    const timeout = setTimeout(() => controller.abort(), 145_000)
+    const timeout = setTimeout(() => controller.abort(), 30_000)
     try {
       const response = await fetch(`${this.serviceOrigin}/api/speech`, {
         method: 'POST',
@@ -119,7 +135,7 @@ export class PlatformSpeechPlayer {
         if (generation === this.generation) {
           started = true
           clearTimeout(this.timer)
-          this.update({ status: 'speaking', message: '正在播放语音' })
+          this.update({ status: 'speaking', message: '正在播报' })
         }
       }
       this.audio.onended = () => {
@@ -143,7 +159,7 @@ export class PlatformSpeechPlayer {
       this.update({
         status: 'error',
         message: controller.signal.aborted
-          ? '生成音频超时，请点击重试。'
+          ? '加载音频超时，请点击重试。'
           : error instanceof Error
             ? error.message
             : '平台语音请求失败，请重试。'
@@ -160,14 +176,20 @@ export class PlatformSpeechPlayer {
     clearTimeout(this.timer)
     this.timer = setTimeout(() => {
       if (generation === this.generation)
-        this.update({ status: 'blocked', message: '浏览器尚未开始播放，请点击“点击播放”。' })
+        this.update({
+          status: 'blocked',
+          message: '浏览器尚未开始播放，请点击“点击播放”。'
+        })
     }, 10_000)
     const failed = (error: unknown): void => {
       if (generation !== this.generation) return
       clearTimeout(this.timer)
       this.update(
         error instanceof Error && error.name === 'NotAllowedError'
-          ? { status: 'blocked', message: '音频已准备好，浏览器需要您点击“点击播放”。' }
+          ? {
+              status: 'blocked',
+              message: '音频已准备好，浏览器需要您点击“点击播放”。'
+            }
           : { status: 'error', message: '音频播放失败，请检查媒体音量后重试。' }
       )
     }

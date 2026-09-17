@@ -2,7 +2,8 @@
   position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-rows: 68px minmax(0, 1fr) 32px;
+  grid-template-rows: 68px minmax(0, 1fr) auto;
+  container-type: inline-size;
 }
 
 .energy-panel--konva {
@@ -52,13 +53,13 @@
   border-radius: 9px;
   color: #71d8ec;
   background: rgba(45, 140, 176, 0.1);
-  font-size: 28px;
+  font-size: 1.75rem;
 }
 
 .energy-heading h2 {
   margin: 0;
   color: #e3eef5;
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 550;
   letter-spacing: 0.04em;
 }
@@ -66,7 +67,7 @@
 .energy-heading p {
   margin: 5px 0 0;
   color: #7c9bae;
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 0.12em;
 }
 
@@ -75,7 +76,7 @@
   align-items: center;
   gap: 18px;
   color: #91adbf;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .energy-legend span,
@@ -93,13 +94,15 @@
 }
 
 .energy-footer {
+  min-height: 48px;
+  gap: 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 22px;
   border-top: 1px solid rgba(61, 113, 145, 0.17);
   color: #7793a7;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .energy-footer i {
@@ -119,7 +122,9 @@
 .energy-footer__actions {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .energy-motion-control {
@@ -132,7 +137,7 @@
   border-radius: 4px;
   color: #9dc8d6;
   background: rgba(33, 104, 129, 0.12);
-  font-size: 10px;
+  font-size: 0.625rem;
   cursor: pointer;
 }
 
@@ -140,4 +145,180 @@
   border-color: #67c7d6;
   color: #d1f5f8;
   background: rgba(33, 104, 129, 0.28);
+}
+
+.energy-efficiency-button,
+.energy-upgrade-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid #bd9745;
+  border-radius: 6px;
+  color: #ffe29a;
+  background: linear-gradient(135deg, #674a1b60, #352d1840);
+  font-size: 0.75rem;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.energy-efficiency-button:hover,
+.energy-efficiency-button[aria-pressed='true'] {
+  border-color: #ffdc73;
+  background: #8a64164d;
+  box-shadow: 0 0 16px #ffce471c;
+}
+
+.energy-upgrade-button {
+  border-color: #4bbaae;
+  color: #aff3dd;
+  background: linear-gradient(135deg, #23695870, #16434250);
+}
+
+.energy-upgrade-button:hover {
+  border-color: #91f1d5;
+  background: #266d6266;
+}
+
+.energy-upgrade-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.energy-upgrade-button:disabled svg {
+  animation: energy-upgrade-spin 900ms linear infinite;
+}
+
+.energy-footer button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.energy-panel button:focus-visible {
+  outline: 2px solid #ffe29a;
+  outline-offset: 3px;
+}
+
+.energy-efficiency-callout {
+  position: absolute;
+  z-index: 2;
+  width: max-content;
+  transform-origin: top center;
+  pointer-events: none;
+}
+
+.energy-efficiency-callout strong {
+  display: block;
+  padding: 6px 21px;
+  border: 1px solid #ffe598;
+  border-radius: 8px;
+  color: #49260c;
+  background: linear-gradient(120deg, #fff0a2, #ffd04e);
+  box-shadow:
+    0 0 26px #ffd04e55,
+    0 4px 14px #0005;
+  font-size: 1.5rem;
+  font-weight: 750;
+  line-height: 1.15;
+  white-space: nowrap;
+  animation: energy-efficiency-reveal 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.energy-efficiency-callout--traditional strong {
+  color: #9b301a;
+}
+
+.energy-upgrade-overlay {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 18px;
+  color: #d6fff0;
+  background: #041722df;
+  backdrop-filter: blur(3px);
+}
+
+.energy-upgrade-overlay strong {
+  font-size: 1.25rem;
+  font-weight: 550;
+}
+
+.energy-upgrade-overlay > span:last-child {
+  color: #83bcae;
+  font-size: 0.8125rem;
+}
+
+.energy-upgrade-spinner {
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+  border: 1px solid #73ebbc70;
+  border-radius: 50%;
+  color: #8bffd1;
+  box-shadow: 0 0 36px #43d6a026;
+  font-size: 3.25rem;
+  animation: energy-upgrade-spin 1200ms linear infinite;
+}
+
+@keyframes energy-upgrade-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes energy-efficiency-reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.65);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.energy-panel--paused .energy-efficiency-callout strong {
+  animation: none;
+}
+
+@container (max-width: 880px) {
+  .energy-footer .energy-footer__note {
+    display: none;
+  }
+
+  .energy-heading {
+    gap: 10px;
+    padding: 0 15px;
+  }
+
+  .energy-legend {
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .energy-heading__title {
+    flex-shrink: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .energy-efficiency-callout strong,
+  .energy-upgrade-button:disabled svg,
+  .energy-upgrade-spinner {
+    animation: none;
+  }
 }

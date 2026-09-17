@@ -59,7 +59,7 @@
   background: rgba(229, 145, 26, 0.16);
   box-shadow: 0 0 20px rgba(241, 166, 45, 0.2);
   color: #ffc653;
-  font-size: 25px;
+  font-size: 1.5625rem;
   font-weight: 700;
   animation: forecast-alert-pulse 1.15s ease-in-out infinite;
 }
@@ -76,14 +76,14 @@
   display: block;
   margin-bottom: 3px;
   color: #f7b943;
-  font-size: 12px;
+  font-size: 0.75rem;
   letter-spacing: 0.12em;
 }
 
 .forecast-alert__heading h2 {
   margin: 0;
   color: #f7f9fb;
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 600;
 }
 
@@ -93,7 +93,7 @@
   border-radius: 5px;
   color: #9baab5;
   background: rgba(255, 255, 255, 0.04);
-  font-size: 23px;
+  font-size: 1.4375rem;
   line-height: 1;
   cursor: pointer;
 }
@@ -112,18 +112,18 @@
 
 .forecast-alert__device strong {
   color: #ff8478;
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 
 .forecast-alert__device span {
   color: #cbd5db;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .forecast-alert p {
   margin: 17px 0;
   color: #bbc8d1;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.75;
 }
 
@@ -134,7 +134,7 @@
   border-radius: 6px;
   color: #fff1ed;
   background: rgba(168, 48, 34, 0.14);
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 600;
   line-height: 1.65;
 }
@@ -142,7 +142,7 @@
 .forecast-alert .forecast-alert__detail {
   margin: 0 0 15px;
   color: #aebdc7;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .forecast-alert__metrics {
@@ -163,12 +163,12 @@
   display: block;
   margin-bottom: 7px;
   color: #8398a7;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .forecast-alert__metrics strong {
   color: #f5ca55;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 600;
 }
 
@@ -178,7 +178,7 @@
   border-radius: 5px;
   color: #9eafb9;
   background: rgba(0, 10, 18, 0.32);
-  font-size: 11px;
+  font-size: 0.6875rem;
   text-align: center;
 }
 
@@ -193,7 +193,7 @@
   border-radius: 5px;
   color: #99adba;
   background: rgba(5, 26, 41, 0.66);
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 
 .forecast-alert__voice > span:nth-child(2) {
@@ -206,7 +206,7 @@
   border-radius: 4px;
   color: #8edaff;
   background: rgba(17, 103, 145, 0.12);
-  font-size: 10px;
+  font-size: 0.625rem;
   cursor: pointer;
 }
 

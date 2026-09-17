@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { STATION_TIME_ZONE } from '../../../../../shared/plc-clock'
 import { compareWorkOrders } from '../../../../../shared/work-order-sort'
+import { seasonalWorkOrderFields } from '../../../../../shared/agrivoltaic-analysis'
+import {
+  hasSeasonalFieldWorkflow,
+  isSeasonalInspectionResult,
+  SEASONAL_ROLES
+} from '../../../../../shared/task-evidence'
+import type { TiltAdjustmentPlan } from '../../../../../shared/tilt-adjustment'
+import TaskPhotoGallery from '../../workorder/TaskPhotoGallery'
+import SeasonalResultView from '../../workorder/SeasonalResultView'
 import {
   deleteWorkOrder,
   dispatchWorkOrder,
@@ -129,18 +138,28 @@ function activeTaskStep(task: WorkOrderTask): number {
 
 function TaskCard({
   task,
-  workOrderStatus
+  workOrderStatus,
+  serviceOrigin,
+  plan
 }: {
   task: WorkOrderTask
   workOrderStatus: WorkOrderStatus
+  serviceOrigin: string
+  plan?: TiltAdjustmentPlan
 }): React.JSX.Element {
   const resultEntries = Object.entries(task.result ?? {}).filter(
     ([key, value]) =>
-      key !== 'role' && key !== 'kind' && value !== undefined && value !== null && value !== ''
+      key !== 'role' &&
+      key !== 'kind' &&
+      key !== 'photos' &&
+      value !== undefined &&
+      value !== null &&
+      value !== ''
   )
   const currentStep = workOrderStatus === 'pending_review' ? -1 : activeTaskStep(task)
-  const milestones =
-    task.role === 'B'
+  const milestones = hasSeasonalFieldWorkflow(plan)
+    ? ['Pad 已接收', '已开始', '表单确认', '结果已回传']
+    : task.role === 'B'
       ? ['Pad 已接收', '已开始', '隔离验电确认', '恢复送电已提交']
       : ['Pad 已接收', '已开始', '现场处理', '结果已提交']
 
@@ -151,9 +170,11 @@ function TaskCard({
         <div>
           <strong>{task.assigneeName}</strong>
           <small>
-            {task.role === 'C' && task.title !== '热斑确认与处理'
-              ? '现场检查与处理'
-              : ROLE_META[task.role].title}
+            {hasSeasonalFieldWorkflow(plan)
+              ? SEASONAL_ROLES[task.role].signer
+              : task.role === 'C' && task.title !== '热斑确认与处理'
+                ? '现场检查与处理'
+                : ROLE_META[task.role].title}
           </small>
         </div>
         <em className={`task-state task-state--${task.status}`}>
@@ -193,7 +214,9 @@ function TaskCard({
           <b>回填结果</b>
           <time>{task.submittedAt ? formatDateTime(task.submittedAt) : '尚未提交'}</time>
         </div>
-        {resultEntries.length > 0 ? (
+        {plan && isSeasonalInspectionResult(task.result) ? (
+          <SeasonalResultView result={task.result} plan={plan} />
+        ) : resultEntries.length > 0 ? (
           <dl>
             {resultEntries.map(([key, value]) => (
               <div key={key}>
@@ -206,6 +229,12 @@ function TaskCard({
           </dl>
         ) : (
           <p>等待 {task.assigneeName} 在 Pad 端回填</p>
+        )}
+        {Boolean(task.result?.photos?.length) && (
+          <>
+            <h5>回传照片（{task.result!.photos!.length}）</h5>
+            <TaskPhotoGallery photos={task.result!.photos!} serviceOrigin={serviceOrigin} />
+          </>
         )}
       </div>
     </article>
@@ -829,13 +858,27 @@ export default function WorkOrderCenter({
                             </div>
                             {selected.tiltAdjustment && (
                               <>
+                                {selected.tiltAdjustment.analysisVersion === 2 &&
+                                  seasonalWorkOrderFields(selected.tiltAdjustment)
+                                    .slice(1)
+                                    .map(([label, value]) => (
+                                      <div key={label}>
+                                        <dt>{label}</dt>
+                                        <dd style={{ whiteSpace: 'pre-line' }}>{value}</dd>
+                                      </div>
+                                    ))}
                                 <div>
                                   <dt>依据月份</dt>
                                   <dd>{selected.tiltAdjustment.month} 月</dd>
                                 </div>
                                 <div>
-                                  <dt>项目资料</dt>
-                                  <dd>{selected.tiltAdjustment.fileName}</dd>
+                                  <dt>
+                                    {selected.tiltAdjustment.userRequest ? '用户需求' : '项目资料'}
+                                  </dt>
+                                  <dd>
+                                    {selected.tiltAdjustment.userRequest ||
+                                      selected.tiltAdjustment.fileName}
+                                  </dd>
                                 </div>
                               </>
                             )}
@@ -864,20 +907,22 @@ export default function WorkOrderCenter({
                           </dl>
                         </section>
                         <div className="work-order-diagnosis">
-                          <section>
-                            <span>{selected.tiltAdjustment ? '设备运行数据' : '报警数据'}</span>
-                            <h4>
-                              {formatNumber(selected.alarm.voltage)} V
-                              <i />
-                              {formatNumber(selected.alarm.current)} A
-                            </h4>
-                            <p>
-                              正常区间：{formatNumber(selected.normalRange.voltageMin)}–
-                              {formatNumber(selected.normalRange.voltageMax)} V /{' '}
-                              {formatNumber(selected.normalRange.currentMin)}–
-                              {formatNumber(selected.normalRange.currentMax)} A
-                            </p>
-                          </section>
+                          {!selected.tiltAdjustment && (
+                            <section className="work-order-alarm-data">
+                              <span>报警数据</span>
+                              <h4>
+                                {formatNumber(selected.alarm.voltage)} V
+                                <i />
+                                {formatNumber(selected.alarm.current)} A
+                              </h4>
+                              <p>
+                                正常区间：{formatNumber(selected.normalRange.voltageMin)}–
+                                {formatNumber(selected.normalRange.voltageMax)} V /{' '}
+                                {formatNumber(selected.normalRange.currentMin)}–
+                                {formatNumber(selected.normalRange.currentMax)} A
+                              </p>
+                            </section>
+                          )}
                           <section>
                             <span>处理建议</span>
                             <h4>{selected.handlingSuggestion}</h4>
@@ -921,12 +966,16 @@ export default function WorkOrderCenter({
                             已提交
                           </strong>
                         </div>
-                        <div className="work-task-grid">
+                        <div
+                          className={`work-task-grid${hasSeasonalFieldWorkflow(selected.tiltAdjustment) ? ' work-task-grid--seasonal' : ''}`}
+                        >
                           {([...selected.tasks] as WorkOrderTask[])
                             .sort((left, right) => left.role.localeCompare(right.role))
                             .map((task) => (
                               <TaskCard
                                 task={task}
+                                serviceOrigin={serviceOrigin}
+                                plan={selected.tiltAdjustment}
                                 workOrderStatus={selected.status}
                                 key={task.id}
                               />

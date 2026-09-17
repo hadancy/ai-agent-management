@@ -61,7 +61,10 @@ export async function synthesizeSpeech(text: string, resources?: SpeechResources
           '--vits-lexicon=lexicon.txt',
           '--tts-rule-fsts=phone.fst,date.fst,number.fst',
           '--sid=10',
-          '--speed=1',
+          // Reduce stochastic voice/duration variation for steady system announcements.
+          '--vits-noise-scale=0.3',
+          '--vits-noise-scale-w=0.3',
+          '--speed=0.95',
           '--num-threads=2',
           '--print-args=false',
           `--output-filename=${output}`,

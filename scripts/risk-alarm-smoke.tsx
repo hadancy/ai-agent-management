@@ -63,7 +63,12 @@ async function runRiskAlarmSmoke(): Promise<string[]> {
     check(String(url).endsWith(':17880/api/speech'), 'alarms must use the platform TTS endpoint')
     spoken.push(JSON.parse(String(init?.body)).text)
     return new Response(new Blob([new Uint8Array(200)], { type: 'audio/wav' }), {
-      headers: { 'Content-Type': 'audio/wav' }
+      headers: {
+        'Content-Type': 'audio/wav',
+        'X-Speech-Provider': 'recorded',
+        'X-Speech-Voice': 'Tingting',
+        'X-Speech-Fallback': '0'
+      }
     })
   }
   class TestAudio {
@@ -119,6 +124,11 @@ async function runRiskAlarmSmoke(): Promise<string[]> {
   render(updated)
   await pause(200)
   check(spoken.length === 1, 'Data refreshes must not delay or duplicate the first announcement')
+  check(
+    document.body.textContent?.includes('正在播报') &&
+      !/婷婷|预录音频/.test(document.body.textContent ?? ''),
+    'alarms display plain playback status'
+  )
   check(document.querySelectorAll('[role="alertdialog"]').length === 1, 'Show one dialog')
   check(document.body.textContent?.includes('实时电压'), 'Show actual measurements')
   check(document.body.textContent?.includes('风险日电压'), 'Show forecast measurements')
@@ -138,6 +148,12 @@ async function runRiskAlarmSmoke(): Promise<string[]> {
   check(spoken.length === 1, 'Reopening an ongoing alarm must not repeat speech')
   clickButton('重新播报')
   check(Number(spoken.length) === 2, 'Explicit replay must still work')
+  await pause(0)
+  check(
+    document.body.textContent?.includes('正在播报') &&
+      !/婷婷|预录音频/.test(document.body.textContent ?? ''),
+    'replayed alarms display plain playback status'
+  )
   reports.push('PASS: closing and reopening remain silent; explicit replay works')
 
   render(null)

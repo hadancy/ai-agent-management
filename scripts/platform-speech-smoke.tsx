@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import AiAssistant from '../src/renderer/src/features/monitor/ai/AiAssistant'
 import ConsoleApp from '../src/renderer/src/features/monitor/ConsoleApp'
+import SpeechSettingsCard from '../src/renderer/src/features/monitor/settings/SpeechSettingsCard'
 
 function check(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message)
@@ -93,9 +94,16 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
     { id: 'old', orderNumber: 'WO-OLD', status: 'closed' },
     { id: 'new', orderNumber: 'WO-NEW', status: 'in_progress' }
   ]
+  const voice = 'Tingting'
+  let orderReads = 0
   const response = (): Response =>
     new Response(new Blob([new Uint8Array(200)], { type: 'audio/wav' }), {
-      headers: { 'Content-Type': 'audio/wav', 'X-Speech-Provider': 'qwen' }
+      headers: {
+        'Content-Type': 'audio/wav',
+        'X-Speech-Provider': 'recorded',
+        'X-Speech-Voice': voice,
+        'X-Speech-Fallback': '0'
+      }
     })
   window.fetch = async (value, init) => {
     const url = String(value)
@@ -115,8 +123,10 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
     }
     if (url.endsWith('/api/system-info')) return Response.json({})
     if (url.endsWith('/api/telemetry/latest')) return new Response(null, { status: 204 })
-    if (url.includes('/api/work-orders?'))
+    if (url.includes('/api/work-orders?')) {
+      orderReads++
       return Response.json({ items: orders, total: orders.length })
+    }
     throw new Error(`Unexpected request in component test: ${url}`)
   }
   localStorage.clear()
@@ -159,6 +169,11 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
     players.some((player) => player.active),
     'AI audio starts'
   )
+  check(
+    document.body.textContent?.includes('正在播报') &&
+      !/婷婷|预录音频/.test(document.body.textContent ?? ''),
+    'AI displays playback status without voice metadata'
+  )
   click('停止播报')
   check(
     players.every((player) => !player.active),
@@ -177,7 +192,7 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
   hold = true
   click('重新播报')
   const beforeUnmount = starts
-  check(document.body.textContent?.includes('取消生成'), 'AI pending speech can be canceled')
+  check(document.body.textContent?.includes('取消加载'), 'AI pending speech can be canceled')
   flushSync(() => aiRoot.unmount())
   check(heldSignal?.aborted, 'AI unmount aborts cloud requests')
   release!(response())
@@ -200,6 +215,16 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
   )
   await pause()
   check(spoken.length === initialCount, 'initially closed work orders must stay silent')
+  const publishSettings = (revision: string): void => {
+    sockets.at(-1)!.dispatchEvent(
+      new MessageEvent('message', {
+        data: JSON.stringify({ type: 'speech.settings-changed', payload: { revision } })
+      })
+    )
+  }
+  publishSettings('settings-1')
+  await pause()
+  check(spoken.length === initialCount, 'initial settings do not announce historical closures')
   denied = true
   orders = orders.map((order) => ({ ...order, status: 'closed' }))
   const invalidate = (): void => {
@@ -226,12 +251,48 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
     document.querySelector('[aria-label="工单关闭语音提醒"]'),
     'blocked closure announcements expose a visible play action'
   )
+  check(
+    document.querySelector('[aria-label="工单关闭语音提醒"]')?.textContent?.includes('点击播放'),
+    'work-order notifications show the playback action'
+  )
+  const beforeSettingsReads = orderReads
+  const oldBlockedUrl = players.find((player) => player.src)?.src
+  publishSettings('settings-2')
+  await pause()
+  check(spoken.length === initialCount + 2, 'settings events regenerate blocked announcements')
+  check(!oldBlockedUrl || !urls.has(oldBlockedUrl), 'old blocked audio is released')
+  check(
+    document.querySelector('[aria-label="工单关闭语音提醒"]')?.textContent?.includes('点击播放'),
+    'the refreshed notification keeps the playback action'
+  )
+  publishSettings('settings-2')
+  await pause()
+  check(spoken.length === initialCount + 2, 'duplicate settings events do not repeat speech')
+  check(orderReads === beforeSettingsReads, 'speech settings do not trigger work-order reloads')
   denied = false
   click('点击播放')
   await pause()
   check(
-    spoken.length === initialCount + 1 && players.some((player) => player.active),
+    spoken.length === initialCount + 2 && players.some((player) => player.active),
     'closure replay uses the prepared clip'
+  )
+  const playingUrl = players.find((player) => player.active)!.src
+  publishSettings('settings-3')
+  await pause()
+  check(
+    spoken.length === initialCount + 3 && !urls.has(playingUrl),
+    'settings events replace audio that is already playing'
+  )
+  check(
+    players.filter((player) => player.active).length === 1,
+    'voice changes keep one active clip'
+  )
+  flushSync(() => players.find((player) => player.active)!.finish())
+  publishSettings('settings-4')
+  await pause()
+  check(
+    spoken.length === initialCount + 3,
+    'settings changes do not replay completed notifications'
   )
   flushSync(() => consoleRoot.unmount())
   check(
@@ -239,8 +300,33 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
     'leaving console stops and releases all speech'
   )
   reports.push(
-    'PASS: console closure announcements use platform TTS, deduplicate events, support manual resume and clean up on unmount'
+    'PASS: console announcements share the voice, sync settings over WebSocket, replace blocked/playing audio and keep completed notifications silent'
   )
+  const settingsRoot = createRoot(document.getElementById('root')!)
+  flushSync(() => settingsRoot.render(<SpeechSettingsCard />))
+  await pause()
+  check(
+    !document.querySelector('input, select'),
+    'recorded voice settings never offer cloud keys or alternative voices'
+  )
+  click('试听语音')
+  await pause()
+  check(
+    spoken.at(-1)?.includes('故障类型：组件热斑'),
+    'settings preview uses the approved diagnosis recording'
+  )
+  check(
+    document.body.textContent?.includes('正在播报') &&
+      !/婷婷|预录音频/.test(document.body.textContent ?? ''),
+    'preview shows playback status without technical labels'
+  )
+  click('停止试听')
+  check(
+    players.every((player) => !player.active),
+    'preview can stop through the shared player'
+  )
+  flushSync(() => settingsRoot.unmount())
+  reports.push('PASS: recorded settings preview, shared playback, stop and no cloud configuration')
   return reports
 }
 Object.assign(window, { runPlatformSpeechSmoke })

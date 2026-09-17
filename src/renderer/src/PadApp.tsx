@@ -10,6 +10,7 @@ import {
 import { usePadTasks } from './features/pad/usePadTasks'
 import { useTaskSpeech } from './features/pad/useTaskSpeech'
 import { useRealtime } from './realtime'
+import { PAD_PLATFORM_NAME } from '../../shared/task-evidence'
 
 const ROLE_STORAGE_KEY = 'platform-c.bound-role'
 
@@ -18,22 +19,22 @@ const roles: Record<
   { name: string; duty: string; description: string; shortDuty: string }
 > = {
   A: {
-    name: 'A员工',
+    name: 'A同学',
     duty: '安全监护',
-    shortDuty: '安全监护',
-    description: '全程监护作业安全，发现违章立即制止，完成后提交监护结果。'
+    shortDuty: '监护与验收',
+    description: '负责安全监护或完工验收，按工单表单逐项确认并回传结果。'
   },
   B: {
-    name: 'B员工',
+    name: 'B同学',
     duty: '工作负责人',
-    shortDuty: '隔离与验电',
-    description: '作业前负责隔离与验电，C 员工处理后负责恢复连接和送电。'
+    shortDuty: '作业前检查',
+    description: '负责作业前检查和现场安全措施，填写检查表、上传照片并签字。'
   },
   C: {
-    name: 'C员工',
+    name: 'C同学',
     duty: '检测与处理',
-    shortDuty: '热斑检测与处理',
-    description: '使用红外热像仪确认热斑，完成清理或更换，并回填复测结果。'
+    shortDuty: '现场作业实施',
+    description: '按工单完成检测处理或倾角调整，上传现场照片并回传实施记录。'
   }
 }
 
@@ -93,7 +94,7 @@ function RoleBinding({ onBind }: { onBind: (role: PadRole) => void }): React.JSX
         <div className="pad-binding-mark" aria-hidden="true">
           C
         </div>
-        <span className="pad-binding-eyebrow">平台 C · 现场任务终端</span>
+        <span className="pad-binding-eyebrow">{PAD_PLATFORM_NAME}</span>
         <h1 id="pad-binding-title">请绑定本台 Pad 的使用人员</h1>
         <p className="pad-binding-intro">
           每台 Pad 只接收一位操作人员的任务。选择后将保存在本机，下次打开无需重新选择。
@@ -156,6 +157,9 @@ function EmptyTaskState({ tab }: { tab: TaskTab }): React.JSX.Element {
 }
 
 export default function PadApp(): React.JSX.Element {
+  useEffect(() => {
+    document.title = PAD_PLATFORM_NAME
+  }, [])
   const [role, setRole] = useState<PadRole | null>(readInitialRole)
   const [activeTab, setActiveTab] = useState<TaskTab>('pending')
   const [busyTask, setBusyTask] = useState<{ taskId: string; action: TaskAction } | null>(null)
@@ -273,7 +277,7 @@ export default function PadApp(): React.JSX.Element {
             C
           </span>
           <div>
-            <h1>现场任务终端</h1>
+            <h1>{PAD_PLATFORM_NAME}</h1>
             <p>平台 C · 个人工单处理</p>
           </div>
         </div>
@@ -328,7 +332,7 @@ export default function PadApp(): React.JSX.Element {
             <p role="status" aria-live="polite">
               {speech.activated
                 ? speech.message
-                : '每次打开页面请先点击开启。语音由平台统一生成，完整播完后才记录为已播报。'}
+                : '每次打开页面请先点击开启，完整播完后才记录为已播报。'}
             </p>
           </div>
           <div className="pad-voice-actions">
@@ -417,6 +421,7 @@ export default function PadApp(): React.JSX.Element {
               <PadTaskCard
                 key={task.id}
                 task={task}
+                serviceOrigin={serviceOrigin}
                 busyAction={busyTask?.taskId === task.id ? busyTask.action : null}
                 actionError={actionErrors[task.id]}
                 onAction={performAction}

@@ -53,7 +53,7 @@
   align-items: center;
   gap: 10px;
   color: #87b9d2;
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 2.5px;
 }
 
@@ -67,7 +67,7 @@
 .home-intro h2 {
   margin: 12px 0 11px;
   color: #f1f6fc;
-  font-size: 35px;
+  font-size: 2.1875rem;
   font-weight: 500;
   line-height: 1.3;
   letter-spacing: 5px;
@@ -83,7 +83,7 @@
   gap: 13px;
   margin: 0;
   color: #a8bed0;
-  font-size: 12px;
+  font-size: 0.75rem;
   letter-spacing: 1px;
 }
 
@@ -113,7 +113,7 @@
 .home-station > div > span {
   display: block;
   color: #8da8bc;
-  font-size: 9px;
+  font-size: 0.5625rem;
   letter-spacing: 1.3px;
 }
 
@@ -121,7 +121,7 @@
   display: block;
   margin-top: 7px;
   color: #e8f2fa;
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 500;
   letter-spacing: 1px;
 }
@@ -135,7 +135,7 @@
   border: 1px solid #536070;
   border-radius: 3px;
   color: #9cabb9;
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 
 .home-station-state > i,
@@ -163,7 +163,7 @@
   top: 31px;
   left: 0;
   color: #96b3c9;
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 2px;
 }
 
@@ -271,7 +271,7 @@
 
 .home-core-eyebrow {
   color: #68d990;
-  font-size: 9px;
+  font-size: 0.5625rem;
   letter-spacing: 2.5px;
 }
 
@@ -285,7 +285,7 @@
 .home-globe-label h3 {
   margin: 9px 0;
   color: #f3fff6;
-  font-size: 34px;
+  font-size: 2.125rem;
   font-weight: 450;
   letter-spacing: 8px;
   text-indent: 8px;
@@ -295,7 +295,7 @@
 .home-globe-label p {
   margin: 2px 0 18px;
   color: #b1edc6;
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 3px;
 }
 
@@ -308,7 +308,7 @@
   border-radius: 3px;
   color: #8bffa8;
   background: #07572980;
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 2px;
 }
 
@@ -408,20 +408,20 @@
 }
 .home-entry-english {
   color: #91d7ac;
-  font-size: 8px;
+  font-size: 0.5rem;
   letter-spacing: 1.5px;
 }
 .home-entry-content > strong {
   margin-top: 6px;
   color: #f3fff8;
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 500;
   letter-spacing: 1.5px;
 }
 .home-entry-description {
   margin-top: 8px;
   color: #b5dec3;
-  font-size: 11px;
+  font-size: 0.6875rem;
   white-space: nowrap;
 }
 .home-entry-number {
@@ -429,7 +429,7 @@
   top: 13px;
   right: 13px;
   color: #68c38d;
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-family: 'SFMono-Regular', Consolas, monospace;
 }
 .home-entry-arrow {
@@ -456,7 +456,7 @@
   justify-content: center;
   gap: 16px;
   color: #95aec1;
-  font-size: 10px;
+  font-size: 0.625rem;
   letter-spacing: 2px;
 }
 
@@ -476,7 +476,7 @@
   border-radius: 3px;
   color: #a3b9ca;
   background: transparent;
-  font-size: 10px;
+  font-size: 0.625rem;
   cursor: pointer;
 }
 .home-motion-control:hover {
@@ -506,14 +506,14 @@
   gap: 14px;
   padding-left: 28px;
   color: #dfedf7;
-  font-size: 15px;
+  font-size: 0.9375rem;
   letter-spacing: 2px;
 }
 .home-overview-title small {
   display: block;
   margin-top: 9px;
   color: #8da9bf;
-  font-size: 8px;
+  font-size: 0.5rem;
   letter-spacing: 1.4px;
 }
 .home-overview-mark {
@@ -539,12 +539,12 @@
   display: flex;
   width: 100%;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 0.8px;
 }
 .home-stat > strong {
   color: #edf5ff;
-  font-size: 28px;
+  font-size: 1.75rem;
   font-family: 'SFMono-Regular', Consolas, monospace;
   font-weight: 400;
   line-height: 1.15;
@@ -554,12 +554,12 @@
   margin-left: 10px;
   color: #99b2c5;
   font-family: Inter, 'PingFang SC', sans-serif;
-  font-size: 11px;
+  font-size: 0.6875rem;
   letter-spacing: 0;
 }
 .home-stat-note {
   color: #91aabd;
-  font-size: 9px;
+  font-size: 0.5625rem;
   letter-spacing: 0.5px;
 }
 .home-stat--link {
@@ -599,7 +599,7 @@
 
 .agriculture-scene h3 {
   margin: 5px 0 0;
-  font-size: 18px;
+  font-size: 1.125rem;
   font-weight: 450;
   letter-spacing: 3px;
 }
@@ -610,7 +610,7 @@
   right: 0;
   margin: 0;
   color: #819daf;
-  font-size: 7px;
+  font-size: 0.4375rem;
   letter-spacing: 1px;
 }
 

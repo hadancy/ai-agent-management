@@ -1,4 +1,6 @@
 :root {
+  /* Keep typography in rem so every page follows the saved font scale. */
+  font-size: calc(16px * var(--app-font-scale, 1));
   font-family: Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   color: #dce9f8;
   background: #07121e;

@@ -1,6 +1,8 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
+import { createPowerHistoryPoint, type PowerHistoryPoint } from '../../shared/power-history'
+import type { TaskPhoto } from '../../shared/task-evidence'
 import { createBuiltInWorkOrders } from './work-order-samples'
 import type {
   TelemetrySnapshot,
@@ -84,12 +86,17 @@ export interface NewWorkOrderEvent {
 }
 
 export interface AppDatabase {
+  insertTaskPhoto(photo: TaskPhoto, data: Buffer): void
+  getTaskPhoto(id: string): (TaskPhoto & { data: Buffer }) | undefined
+  listTaskPhotos(taskId: string): TaskPhoto[]
+  deleteTaskPhoto(id: string): void
   path: string
   saveTelemetry(snapshot: TelemetrySnapshot): void
+  listPowerHistory(start: string, end: string): PowerHistoryPoint[]
   recordEvent(type: string, payload: unknown): void
   runInTransaction<T>(operation: () => T): T
   seedBuiltInWorkOrders(): void
-  nextWorkOrderNumber(datePart: string): string
+  nextWorkOrderNumber(datePart: string, kind?: 'GZ' | 'NG-GQ'): string
   findOpenWorkOrder(dedupeKey: string): WorkOrder | undefined
   insertWorkOrder(workOrder: WorkOrder, dedupeKey: string): void
   updateWorkOrder(workOrder: WorkOrder): void
@@ -267,6 +274,17 @@ export function createAppDatabase(dataDirectory: string): AppDatabase {
       payload_json TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS task_photos (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL REFERENCES work_order_tasks(id) ON DELETE CASCADE,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      data BLOB NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_task_photos_task ON task_photos(task_id);
+
     CREATE INDEX IF NOT EXISTS idx_telemetry_captured_at
       ON telemetry_snapshots(captured_at);
     CREATE INDEX IF NOT EXISTS idx_work_orders_status_created
@@ -291,6 +309,19 @@ export function createAppDatabase(dataDirectory: string): AppDatabase {
   const recordEventStatement = database.prepare(`
     INSERT INTO system_events(event_type, created_at, payload_json)
     VALUES (@eventType, @createdAt, @payloadJson)
+  `)
+  const powerHistoryStatement = database.prepare(`
+    SELECT payload_json FROM (
+      SELECT payload_json, captured_at, id,
+        ROW_NUMBER() OVER (
+          PARTITION BY substr(captured_at, 1, 16)
+          ORDER BY captured_at DESC, id DESC
+        ) AS sample_order
+      FROM telemetry_snapshots
+      WHERE captured_at >= ? AND captured_at < ?
+    )
+    WHERE sample_order = 1
+    ORDER BY captured_at, id
   `)
   const insertWorkOrderStatement = database.prepare(`
     INSERT INTO work_orders(
@@ -431,6 +462,30 @@ export function createAppDatabase(dataDirectory: string): AppDatabase {
   )
 
   return {
+    insertTaskPhoto(photo, data) {
+      database
+        .prepare(
+          'INSERT INTO task_photos(id, task_id, file_name, mime_type, size, data, created_at) VALUES (@id, @taskId, @fileName, @mimeType, @size, @data, @createdAt)'
+        )
+        .run({ ...photo, data })
+    },
+    getTaskPhoto(id) {
+      return database
+        .prepare(
+          'SELECT id, task_id AS taskId, file_name AS fileName, mime_type AS mimeType, size, data, created_at AS createdAt FROM task_photos WHERE id = ?'
+        )
+        .get(id) as (TaskPhoto & { data: Buffer }) | undefined
+    },
+    listTaskPhotos(taskId) {
+      return database
+        .prepare(
+          'SELECT id, task_id AS taskId, file_name AS fileName, mime_type AS mimeType, size, created_at AS createdAt FROM task_photos WHERE task_id = ? ORDER BY created_at, id'
+        )
+        .all(taskId) as TaskPhoto[]
+    },
+    deleteTaskPhoto(id) {
+      database.prepare('DELETE FROM task_photos WHERE id = ?').run(id)
+    },
     path: databasePath,
     saveTelemetry(snapshot) {
       saveTelemetryStatement.run({
@@ -439,6 +494,12 @@ export function createAppDatabase(dataDirectory: string): AppDatabase {
         collectorMode: snapshot.collectorMode,
         payloadJson: JSON.stringify(snapshot)
       })
+    },
+    listPowerHistory(start, end) {
+      const rows = powerHistoryStatement.all(start, end) as Array<{ payload_json: string }>
+      return rows.map(({ payload_json }) =>
+        createPowerHistoryPoint(JSON.parse(payload_json) as TelemetrySnapshot)
+      )
     },
     recordEvent(type, payload) {
       recordEventStatement.run({
@@ -582,8 +643,8 @@ export function createAppDatabase(dataDirectory: string): AppDatabase {
         })
       })
     },
-    nextWorkOrderNumber(datePart) {
-      const prefix = `GZ-${datePart}-`
+    nextWorkOrderNumber(datePart, kind = 'GZ') {
+      const prefix = `${kind}-${datePart}-`
       const row = database
         .prepare(
           `SELECT MAX(CAST(SUBSTR(order_number, ?) AS INTEGER)) AS sequence

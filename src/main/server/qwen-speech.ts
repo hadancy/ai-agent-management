@@ -1,10 +1,13 @@
 import {
   QWEN_TTS_MODEL,
+  QWEN_SPEECH_INSTRUCTIONS,
   resolveSpeechApiHost,
+  type QwenSpeechModel,
   type SpeechRegion
 } from '../../shared/speech-settings'
 
 class CloudSpeechError extends Error {}
+export class QwenModelAccessError extends CloudSpeechError {}
 
 const MAX_AUDIO_BYTES = 24 * 1024 * 1024
 export type SpeechFetch = typeof globalThis.fetch
@@ -14,6 +17,7 @@ export interface QwenSpeechConfig {
   region: SpeechRegion
   voice: string
   apiHost?: string
+  model?: QwenSpeechModel
 }
 
 // Keep each request below the provider's 600-character limit, preserving all text.
@@ -155,12 +159,30 @@ export async function synthesizeQwenSpeech(
           signal,
           headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: QWEN_TTS_MODEL,
-            input: { text: part, voice: config.voice, language_type: 'Chinese' }
+            model: config.model ?? QWEN_TTS_MODEL,
+            input: {
+              text: part,
+              voice: config.voice,
+              language_type: 'Chinese',
+              ...((config.model ?? QWEN_TTS_MODEL) === QWEN_TTS_MODEL
+                ? { instructions: QWEN_SPEECH_INSTRUCTIONS, optimize_instructions: false }
+                : {})
+            }
           })
         }
       )
       if (!response.ok) {
+        if (response.status === 403) {
+          const body = await readLimited(response, 64 * 1024)
+          let code: unknown
+          try {
+            code = JSON.parse(body.toString('utf8')).code
+          } catch {
+            /* Non-JSON errors use the generic message. */
+          }
+          if (code === 'AccessDenied')
+            throw new QwenModelAccessError('当前账号无权调用此 Qwen3-TTS 模型。')
+        }
         await response.body?.cancel()
         const message =
           response.status === 401

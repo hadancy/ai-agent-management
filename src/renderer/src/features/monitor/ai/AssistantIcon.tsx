@@ -31,6 +31,12 @@ const ICONS = {
     </>
   ),
   voice: <path d="m11 4-6 5H2v6h3l6 5V4Zm4 4a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" />,
+  microphone: (
+    <>
+      <rect x="9" y="2" width="6" height="13" rx="3" />
+      <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" />
+    </>
+  ),
   location: (
     <>
       <path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z" />

@@ -7,7 +7,9 @@ const CACHE_TTL_MS = 10 * 60 * 1000
 
 export interface SpeechAudio {
   data: Buffer
-  provider: 'qwen' | 'offline'
+  provider: 'recorded' | 'qwen' | 'offline'
+  voice?: string
+  fallback?: boolean
   cacheTtlMs?: number
 }
 
@@ -40,11 +42,17 @@ export function registerSpeechRoutes(
       }
     }
     const cached = cache.get(key)
-    if (cached)
-      return reply.header('X-Speech-Provider', cached.provider).type('audio/wav').send(cached.data)
+    const sendAudio = (result: SpeechAudio): typeof reply =>
+      reply
+        .header('X-Speech-Provider', result.provider)
+        .header('X-Speech-Voice', result.voice ?? 'offline-default')
+        .header('X-Speech-Fallback', result.fallback ? '1' : '0')
+        .type('audio/wav')
+        .send(result.data)
+    if (cached) return sendAudio(cached)
     if (!pending.has(key)) {
       if (pending.size >= 3)
-        return reply.code(429).send({ message: '平台正在生成其他语音，请稍后重试。' })
+        return reply.code(429).send({ message: '平台正在准备其他音频，请稍后重试。' })
       const job = Promise.resolve()
         .then(() => synthesize(normalized))
         .then((result): SpeechAudio =>
@@ -69,7 +77,7 @@ export function registerSpeechRoutes(
     }
     try {
       const result = await pending.get(key)!
-      return reply.header('X-Speech-Provider', result.provider).type('audio/wav').send(result.data)
+      return sendAudio(result)
     } catch (error) {
       return reply
         .code(503)

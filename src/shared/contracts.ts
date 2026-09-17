@@ -1,4 +1,6 @@
 import type { TiltAdjustmentPlan } from './tilt-adjustment'
+import type { SeasonalInspectionResult, TaskPhoto } from './task-evidence'
+import type { PlcPowerValues } from './plc'
 
 export type CollectorMode = 'simulation' | 'plc-tcp'
 
@@ -31,6 +33,7 @@ export interface TelemetrySnapshot {
   plcConnected?: boolean
   plcClock?: PlcClock
   collectorError?: string
+  powers?: PlcPowerValues
   devices: TelemetryDevice[]
 }
 
@@ -122,12 +125,14 @@ export interface TiltAdjustmentTaskResult {
   notes?: string
 }
 
-export type WorkOrderTaskResult =
+export type WorkOrderTaskResult = (
   | SafetyMonitorTaskResult
   | IsolationTaskResult
   | TreatmentTaskResult
   | EquipmentInspectionTaskResult
   | TiltAdjustmentTaskResult
+  | SeasonalInspectionResult
+) & { photos?: TaskPhoto[] }
 
 export interface WorkOrderTask {
   id: string
@@ -263,6 +268,7 @@ export interface StartWorkOrderTaskResponse {
 }
 
 export interface CompleteSafetyCheckpointRequest {
+  photoIds?: string[]
   isolationConfirmed: boolean
   voltageTestPassed: boolean
   safetyMeasuresConfirmed: boolean
@@ -289,11 +295,13 @@ export interface SubmitTreatmentTaskRequest {
   notes?: string
 }
 
-export type SubmitWorkOrderTaskRequest =
+export type SubmitWorkOrderTaskRequest = (
   | SubmitSafetyMonitorTaskRequest
   | SubmitIsolationTaskRequest
   | SubmitTreatmentTaskRequest
   | Omit<TiltAdjustmentTaskResult, 'role' | 'kind'>
+  | Omit<SeasonalInspectionResult, 'role' | 'kind' | 'signedAt'>
+) & { photoIds?: string[] }
 
 export interface WorkOrderTaskEventPayload {
   task: WorkOrderTask
@@ -301,6 +309,7 @@ export interface WorkOrderTaskEventPayload {
 }
 
 export type ServerEvent =
+  | { type: 'speech.settings-changed'; payload: { revision: string } }
   | { type: 'system.ready'; payload: SystemInfo }
   | { type: 'telemetry.updated'; payload: TelemetrySnapshot }
   | { type: 'work-order.created'; payload: WorkOrder }

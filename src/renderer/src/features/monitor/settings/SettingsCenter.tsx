@@ -7,6 +7,7 @@ import {
 import '../styles/settings-center.css'
 import { plcServiceOrigin } from '../../plc/api'
 import SpeechSettingsCard from './SpeechSettingsCard'
+import DisplaySettingsCard from './DisplaySettingsCard'
 
 type DraftSettings = {
   normalVoltage: string
@@ -31,7 +32,7 @@ export default function SettingsCenter({
 }): React.JSX.Element {
   const [draft, setDraft] = useState<DraftSettings>(() => toDraft(settings))
   const [saved, setSaved] = useState(false)
-  const [tab, setTab] = useState<'photovoltaic' | 'speech'>('photovoltaic')
+  const [tab, setTab] = useState<'photovoltaic' | 'speech' | 'display'>('photovoltaic')
   const parsed = useMemo<PhotovoltaicSettings>(
     () => ({
       normalVoltage: Number(draft.normalVoltage),
@@ -78,7 +79,7 @@ export default function SettingsCenter({
         <div>
           <span>系统配置</span>
           <h2>设置中心</h2>
-          <p>配置光伏运行基准与全平台语音播报。</p>
+          <p>配置光伏运行基准、全平台语音播报与显示字号。</p>
         </div>
         <a
           className="settings-rule-state"
@@ -101,8 +102,13 @@ export default function SettingsCenter({
         <button type="button" aria-pressed={tab === 'speech'} onClick={() => setTab('speech')}>
           语音播报
         </button>
+        <button type="button" aria-pressed={tab === 'display'} onClick={() => setTab('display')}>
+          显示设置
+        </button>
       </nav>
-      {tab === 'speech' ? (
+      {tab === 'display' ? (
+        <DisplaySettingsCard />
+      ) : tab === 'speech' ? (
         <SpeechSettingsCard />
       ) : (
         <div className="settings-grid">
