@@ -1,4 +1,5 @@
 import type { StringMetric } from '../types'
+import { formatMeasurement } from '../../../../../shared/number-format'
 import type { PhotovoltaicOperatingState } from '../settings/photovoltaicSettings'
 import '../styles/metrics.css'
 
@@ -16,18 +17,16 @@ function SolarGlyph({ battery = false }: { battery?: boolean }): React.JSX.Eleme
 function MetricReading({
   value,
   unit,
-  label,
-  precision
+  label
 }: {
   value: number
   unit: string
   label: string
-  precision: number
 }): React.JSX.Element {
   return (
     <div className="metric-reading">
       <div>
-        <strong>{value.toFixed(precision)}</strong>
+        <strong>{formatMeasurement(value)}</strong>
         <span>{unit}</span>
       </div>
       <small>{label}</small>
@@ -64,8 +63,8 @@ function MetricCard({
       </div>
       <div className="metric-card__content">
         <SolarGlyph battery={battery} />
-        <MetricReading value={metric.voltage} unit="V" label="电压" precision={1} />
-        <MetricReading value={metric.current} unit="A" label="电流" precision={2} />
+        <MetricReading value={metric.voltage} unit="V" label="电压" />
+        <MetricReading value={metric.current} unit="A" label="电流" />
       </div>
     </article>
   )

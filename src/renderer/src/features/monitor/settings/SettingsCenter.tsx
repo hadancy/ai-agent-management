@@ -1,3 +1,4 @@
+import { formatMeasurement } from '../../../../../shared/number-format'
 import { useMemo, useState } from 'react'
 import {
   DEFAULT_PHOTOVOLTAIC_SETTINGS,
@@ -184,13 +185,13 @@ export default function SettingsCenter({
             <div className="settings-range">
               <span>电压范围</span>
               <strong>
-                {voltageRange[0].toFixed(1)} — {voltageRange[1].toFixed(1)} V
+                {formatMeasurement(voltageRange[0])} — {formatMeasurement(voltageRange[1])} V
               </strong>
             </div>
             <div className="settings-range">
               <span>电流范围</span>
               <strong>
-                {currentRange[0].toFixed(2)} — {currentRange[1].toFixed(2)} A
+                {formatMeasurement(currentRange[0])} — {formatMeasurement(currentRange[1])} A
               </strong>
             </div>
             <div className="settings-logic">

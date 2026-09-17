@@ -42,15 +42,11 @@ async function run(): Promise<void> {
     assert.equal(getPowerDayStart(Date.parse('2026-09-17T15:59:59Z')), start)
     assert.equal(getPowerDayStart(Date.parse('2026-09-17T16:00:00Z')), end)
     const discharging = createPowerHistoryPoint(sample(10))
-    assert.equal(
-      discharging.storage,
-      -0.005,
-      'Storage uses V × A / 1,000,000, not the 99 MW rating'
-    )
-    assert.equal(discharging.supply, 12.005, 'Negative PLC storage power increases total supply')
+    assert.equal(discharging.storage, -5, 'Storage uses V × A / 1,000, not the 99 kW rating')
+    assert.equal(discharging.supply, 17, 'Negative PLC storage power increases total supply')
     const charging = createPowerHistoryPoint(sample(20, 20))
-    assert.equal(charging.storage, 0.001)
-    assert.equal(charging.supply, 11.999)
+    assert.equal(charging.storage, 1)
+    assert.equal(charging.supply, 11)
     assert.equal(createPowerHistoryPoint(sample(30, 0)).storage, 0)
     const missing = createPowerHistoryPoint({ ...sample(40), powers: undefined, devices: [] })
     assert.equal(missing.storage, null)
@@ -96,7 +92,7 @@ async function run(): Promise<void> {
     const merged = mergePowerHistory([live], history, start, end)
     assert.equal(
       merged[0].storage,
-      0.006,
+      6,
       'A delayed history response cannot replace a newer live sample'
     )
     const clockOffset = 50 * POWER_HISTORY_DAY_MS

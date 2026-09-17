@@ -29,6 +29,7 @@ import './styles/window-titlebar.css'
 
 const DESIGN_WIDTH = 1680
 const DESIGN_HEIGHT = 977
+const ALARM_STARTUP_DELAY_MS = 10_000
 
 export default function ConsoleApp(): React.JSX.Element {
   const [clock, setClock] = useState(new Date())
@@ -65,6 +66,7 @@ export default function ConsoleApp(): React.JSX.Element {
     useState<PhotovoltaicSettings>(loadPhotovoltaicSettings)
   const [viewportScale, setViewportScale] = useState(1)
   const [alarmOpen, setAlarmOpen] = useState(false)
+  const [alarmReady, setAlarmReady] = useState(false)
   const [workOrderCount, setWorkOrderCount] = useState(0)
   const [workOrdersLoaded, setWorkOrdersLoaded] = useState(false)
   const [localWorkOrderRevision, setLocalWorkOrderRevision] = useState(0)
@@ -208,9 +210,14 @@ export default function ConsoleApp(): React.JSX.Element {
   }, [plcClockOffsetMs])
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setAlarmOpen(Boolean(activeAlarmId)), 0)
+    const timer = window.setTimeout(() => setAlarmReady(true), ALARM_STARTUP_DELAY_MS)
     return () => window.clearTimeout(timer)
-  }, [activeAlarmId])
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAlarmOpen(alarmReady && Boolean(activeAlarmId)), 0)
+    return () => window.clearTimeout(timer)
+  }, [activeAlarmId, alarmReady])
 
   useEffect(() => {
     const syncViewportScale = (): void => {

@@ -2,6 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { MAX_TILT_REQUEST_LENGTH } from '../../../../../shared/tilt-adjustment'
 import AssistantIcon from './AssistantIcon'
 
+// Roughly 3.4 characters per second, with slight variation and pauses between clauses.
+const VOICE_CHARACTER_DELAYS = [280, 300, 270, 320, 290] as const
+
+function nextVoiceDelay(character: string, index: number): number {
+  if (/[。！？.!?\n]/.test(character)) return 700
+  if (/[，、；：,;:]/.test(character)) return 480
+  return VOICE_CHARACTER_DELAYS[index % VOICE_CHARACTER_DELAYS.length]
+}
+
 export default function TiltRequestComposer({
   active,
   busy,
@@ -44,23 +53,29 @@ export default function TiltRequestComposer({
     // Presentation-only transcription: no microphone, recording, or speech service is used.
     let length = 0
     const prefix = beforeSpeech.current ? `${beforeSpeech.current}\n` : ''
-    const timer = window.setInterval(() => {
+    let timer: number
+    const revealNextCharacter = (): void => {
       length = Math.min(length + 1, demoRequest.length)
       setDraft(prefix + demoRequest.slice(0, length))
       if (length === demoRequest.length) {
-        window.clearInterval(timer)
         setRecording(false)
         setVoiceHint('文字已生成，可修改后点击发送')
         input.current?.focus()
+        return
       }
-    }, 140)
+      timer = window.setTimeout(
+        revealNextCharacter,
+        nextVoiceDelay(demoRequest[length - 1], length - 1)
+      )
+    }
+    timer = window.setTimeout(revealNextCharacter, 300)
     const onVisibility = (): void => {
       if (document.hidden) cancel()
     }
     window.addEventListener('blur', cancel)
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
-      window.clearInterval(timer)
+      window.clearTimeout(timer)
       window.removeEventListener('blur', cancel)
       document.removeEventListener('visibilitychange', onVisibility)
     }

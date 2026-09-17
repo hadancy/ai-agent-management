@@ -11,7 +11,7 @@ import {
 import { registerSpeechRoutes } from '../src/main/server/speech'
 import { DIAGNOSIS_SPEECH_TEXT, normalizeRecordedText } from '../src/shared/recorded-speech'
 import { fullRecordings } from './recorded-speech-catalog'
-import { seasonalConclusion, SEASONAL_RESULT } from '../src/shared/agrivoltaic-analysis'
+import { seasonalSpeechText } from '../src/shared/agrivoltaic-analysis'
 import { seasonalTaskVoice } from '../src/shared/task-evidence'
 
 function checkWav(data: Buffer): void {
@@ -65,9 +65,34 @@ async function run(): Promise<void> {
     assert.ok(!identifierParts.some((part) => 'text' in part && ['G', 'Z'].includes(part.text)))
 
     const scenarios: string[] = []
+    const seasonalAdvice = [
+      '冬季：基准+12°，多发电、自动除雪、防霜冻。',
+      '春季：基准倾角−2°，保春茶氨基酸含量，发电效率提升8%。',
+      '春季：基准倾角−2°，保春茶氨基酸含量，发电效率提升8%。',
+      '春季：基准倾角−2°，保春茶氨基酸含量，发电效率提升8%。',
+      '夏季：基准−3°，板下降温8–13℃，消除光合午休，减少水分蒸发30%。',
+      '夏季：基准−3°，板下降温8–13℃，消除光合午休，减少水分蒸发30%。',
+      '夏季：基准−3°，板下降温8–13℃，消除光合午休，减少水分蒸发30%。',
+      '秋季：回归基准，平衡发电与秋茶品质。',
+      '秋季：回归基准，平衡发电与秋茶品质。',
+      '秋季：回归基准，平衡发电与秋茶品质。',
+      '冬季：基准+12°，多发电、自动除雪、防霜冻。',
+      '冬季：基准+12°，多发电、自动除雪、防霜冻。'
+    ]
     for (let month = 1; month <= 12; month++) {
       const date = `2026-${String(month).padStart(2, '0')}-17`
-      scenarios.push(SEASONAL_RESULT.join('\n') + '\n' + seasonalConclusion(date, true))
+      const speech = seasonalSpeechText(date)
+      const advice = seasonalAdvice[month - 1]
+      assert.equal(
+        speech,
+        `基准倾角为21–23°\n${advice}\n现在是${month}月17日，执行${advice.slice(0, 2)}倾角，工单已生成。`
+      )
+      const parts = await service.plan(speech)
+      assert.ok(
+        parts.some((part) => 'text' in part && part.text === normalizeRecordedText(advice)),
+        'Seasonal advice should use its complete recording'
+      )
+      scenarios.push(speech)
       scenarios.push(
         seasonalTaskVoice({
           month,

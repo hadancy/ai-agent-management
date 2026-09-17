@@ -1,6 +1,7 @@
+import { formatMeasurement } from '../../../../../shared/number-format'
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import type { TelemetrySnapshot } from '../../../../../shared/contracts'
-import { formatPowerMW } from '../../../../../shared/power-units'
+import { formatPowerKW } from '../../../../../shared/power-units'
 import {
   createPowerDaySeries,
   getPowerDayStart,
@@ -40,7 +41,7 @@ function tooltip(params: unknown): string {
   return `<strong>${formatDayTime(available[0].value[0])}</strong>${available
     .map(
       (entry) =>
-        `<div style="display:flex;justify-content:space-between;gap:18px;margin-top:6px"><span><i style="display:inline-block;width:8px;height:8px;margin-right:6px;background:${entry.color}"></i>${entry.seriesName}</span><strong>${formatPowerMW(entry.value[1], true)}</strong></div>`
+        `<div style="display:flex;justify-content:space-between;gap:18px;margin-top:6px"><span><i style="display:inline-block;width:8px;height:8px;margin-right:6px;background:${entry.color}"></i>${entry.seriesName}</span><strong>${formatPowerKW(entry.value[1])}</strong></div>`
     )
     .join('')}`
 }
@@ -112,7 +113,7 @@ export default function PowerTrendChart({
         fontFamily: 'Inter, "PingFang SC", "Microsoft YaHei", sans-serif'
       },
       grid: {
-        left: 48 * fontScale,
+        left: 68 * fontScale,
         right: 28 * fontScale,
         top: 26 * fontScale,
         bottom: 30 * fontScale
@@ -138,12 +139,12 @@ export default function PowerTrendChart({
       },
       yAxis: {
         type: 'value',
-        name: '功率 (MW)',
+        name: '功率 (kW)',
         min: ({ min }) => Math.min(0, min),
         max: hasData ? undefined : 10,
         splitNumber: 4,
         nameTextStyle: { color: '#b0b5bc', fontSize: 10 * fontScale },
-        axisLabel: { color: '#aaaeb5', fontSize: 10 * fontScale },
+        axisLabel: { color: '#aaaeb5', fontSize: 10 * fontScale, formatter: formatMeasurement },
         axisTick: { show: false },
         axisLine: { show: true, lineStyle: { color: 'rgba(137, 154, 169, 0.48)' } },
         splitLine: { lineStyle: { color: 'rgba(103, 127, 146, 0.2)', type: 'dashed' } }
@@ -220,11 +221,15 @@ export default function PowerTrendChart({
             {series.name}
           </button>
         ))}
+        <span className="power-chart-grid-power" title="暂无电网功率数据">
+          <i className="key" aria-hidden="true" />
+          电网功率 {formatPowerKW(undefined)}
+        </span>
       </div>
       <div className="chart-wrap">
         <EChartCanvas
           option={option}
-          ariaLabel="当天00时至24时总供电、光伏发电、储能功率和总负载功率折线图，单位兆瓦"
+          ariaLabel="当天00时至24时总供电、光伏发电、储能功率和总负载功率折线图，单位千瓦"
         />
         {!loading && !hasData && <div className="power-chart-empty">今日暂无功率数据</div>}
       </div>

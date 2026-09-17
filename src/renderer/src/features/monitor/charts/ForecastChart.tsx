@@ -1,3 +1,4 @@
+import { formatMeasurement } from '../../../../../shared/number-format'
 import { useMemo } from 'react'
 import { useFontScale } from '../../../settings/fontSize'
 import EChartCanvas from './EChartCanvas'
@@ -36,7 +37,7 @@ function createTooltip(params: unknown, model: ForecastModel): string {
   const rows = entries
     .map(({ color, seriesName, value }) => {
       const device = model.forecasts.find(({ name }) => name === seriesName)
-      return `<tr><td><i style="background:${color}"></i>${seriesName}</td><td><strong>${value}%</strong></td><td>${device?.voltageValues?.[dataIndex] ?? '--'}</td><td>${device?.currentValues?.[dataIndex] ?? '--'}</td></tr>`
+      return `<tr><td><i style="background:${color}"></i>${seriesName}</td><td><strong>${formatMeasurement(value)}%</strong></td><td>${formatMeasurement(device?.voltageValues?.[dataIndex])}</td><td>${formatMeasurement(device?.currentValues?.[dataIndex])}</td></tr>`
     })
     .join('')
 
@@ -68,7 +69,7 @@ export default function ForecastChart({
         fontFamily: 'Inter, "PingFang SC", "Microsoft YaHei", sans-serif'
       },
       grid: {
-        left: 45 * fontScale,
+        left: 55 * fontScale,
         right: 20 * fontScale,
         top: 17 * fontScale,
         bottom: 29 * fontScale
@@ -111,7 +112,7 @@ export default function ForecastChart({
         nameTextStyle: { color: '#b0b5bc', fontSize: 9 * fontScale, padding: [0, 0, 0, 1] },
         axisLine: { show: true, lineStyle: { color: 'rgba(137, 154, 169, 0.48)' } },
         axisTick: { show: false },
-        axisLabel: { color: '#aaaeb5', fontSize: 9 * fontScale },
+        axisLabel: { color: '#aaaeb5', fontSize: 9 * fontScale, formatter: formatMeasurement },
         splitLine: {
           show: true,
           lineStyle: { color: 'rgba(103, 127, 146, 0.2)', type: 'dashed' }

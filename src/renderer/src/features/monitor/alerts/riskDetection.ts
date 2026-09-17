@@ -1,3 +1,4 @@
+import { formatMeasurement } from '../../../../../shared/number-format'
 import type { DeviceRiskAlarm, ForecastRisk, StringMetric } from '../types'
 import {
   getNormalRange,
@@ -36,7 +37,7 @@ export function detectDeviceRisk(
     // Keep one identity throughout an incident, even as sources, devices or dates change.
     id: 'device-risk',
     message: `警告！检测到${devices.map((device) => device.name).join('、')}存在运行异常或预测风险，请立即查看处理。`,
-    normalRangeDescription: `正常区间：电压 ${minimumVoltage.toFixed(1)}–${maximumVoltage.toFixed(1)} V / 电流 ${minimumCurrent.toFixed(2)}–${maximumCurrent.toFixed(2)} A。`,
+    normalRangeDescription: `正常区间：电压 ${formatMeasurement(minimumVoltage)}–${formatMeasurement(maximumVoltage)} V / 电流 ${formatMeasurement(minimumCurrent)}–${formatMeasurement(maximumCurrent)} A。`,
     devices
   }
 }

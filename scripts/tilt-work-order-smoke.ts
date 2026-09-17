@@ -281,9 +281,9 @@ export async function runTiltWorkOrderSmoke(): Promise<void> {
     const seasonalC = resumed
       .listAssignedTasks('C')
       .items.find((task) => task.workOrderId === autumn.id)!
-    assert.ok(seasonalC.description.includes('22°（允许偏差 ±1°）'))
+    assert.ok(seasonalC.description.includes('22.00°（允许偏差 ±1.00°）'))
     assert.ok(seasonalC.description.includes('09:00–17:00'))
-    assert.ok(seasonalC.description.includes('风速≤10 m/s'))
+    assert.ok(seasonalC.description.includes('风速≤10.00 m/s'))
     resumed.startTask(autumn.tasks.find((task) => task.role === 'A')!.id)
     const autumnB = autumn.tasks.find((task) => task.role === 'B')!.id
     resumed.startTask(autumnB)

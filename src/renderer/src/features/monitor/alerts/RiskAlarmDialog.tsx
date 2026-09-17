@@ -1,3 +1,4 @@
+import { formatMeasurement } from '../../../../../shared/number-format'
 import { useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import type { DeviceRiskAlarm } from '../types'
@@ -117,11 +118,11 @@ export default function RiskAlarmDialog({
                   <div className="forecast-alert__metrics">
                     <div>
                       <span>实时电压</span>
-                      <strong>{device.realtime.voltage.toFixed(2)} V</strong>
+                      <strong>{formatMeasurement(device.realtime.voltage)} V</strong>
                     </div>
                     <div>
                       <span>实时电流</span>
-                      <strong>{device.realtime.current.toFixed(2)} A</strong>
+                      <strong>{formatMeasurement(device.realtime.current)} A</strong>
                     </div>
                   </div>
                 </>
@@ -134,21 +135,21 @@ export default function RiskAlarmDialog({
                   <div className="forecast-alert__metrics">
                     <div>
                       <span>风险状态指数</span>
-                      <strong>{device.prediction.riskValue}%</strong>
+                      <strong>{formatMeasurement(device.prediction.riskValue)}%</strong>
                     </div>
                     <div>
                       <span>风险日电压</span>
-                      <strong>{device.prediction.projectedVoltage.toFixed(2)} V</strong>
+                      <strong>{formatMeasurement(device.prediction.projectedVoltage)} V</strong>
                     </div>
                     <div>
                       <span>风险日电流</span>
-                      <strong>{device.prediction.projectedCurrent.toFixed(2)} A</strong>
+                      <strong>{formatMeasurement(device.prediction.projectedCurrent)} A</strong>
                     </div>
                   </div>
                   <div className="forecast-alert__month-end">
-                    月末预计：状态指数 {device.prediction.monthEndValue}% · 电压{' '}
-                    {device.prediction.monthEndVoltage} V · 电流 {device.prediction.monthEndCurrent}{' '}
-                    A
+                    月末预计：状态指数 {formatMeasurement(device.prediction.monthEndValue)}% · 电压{' '}
+                    {formatMeasurement(device.prediction.monthEndVoltage)} V · 电流{' '}
+                    {formatMeasurement(device.prediction.monthEndCurrent)} A
                   </div>
                 </>
               )}

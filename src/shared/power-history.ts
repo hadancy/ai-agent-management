@@ -1,5 +1,5 @@
 import type { TelemetrySnapshot } from './contracts'
-import { calculatePowerMW } from './power-units'
+import { calculatePowerKW } from './power-units'
 
 export const POWER_HISTORY_INTERVAL_MS = 60_000
 export const POWER_HISTORY_DAY_MS = 24 * 60 * POWER_HISTORY_INTERVAL_MS
@@ -27,7 +27,7 @@ export function createPowerHistoryPoint(snapshot: TelemetrySnapshot): PowerHisto
   const photovoltaic = online ? finite(snapshot.powers?.photovoltaicPower) : null
   const storage =
     online && battery && battery.status !== 'offline'
-      ? finite(calculatePowerMW(battery.voltage, battery.current))
+      ? finite(calculatePowerKW(battery.voltage, battery.current))
       : null
   return {
     timestamp: snapshot.timestamp,

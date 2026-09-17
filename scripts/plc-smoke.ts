@@ -25,7 +25,7 @@ async function run(): Promise<void> {
   pvRawValues.forEach((value, index) => memory.writeUInt16BE(value, 400 + index * 2))
   memory.writeFloatBE(52, 500)
   memory.writeFloatBE(-5, 504)
-  // Literal byte addresses from PLCTags.xlsx; UInt values are integer MW.
+  // Literal byte addresses from PLCTags.xlsx; UInt values are integer kW.
   const powerFixture = [
     [110, 12],
     [112, 6],
@@ -298,7 +298,7 @@ async function run(): Promise<void> {
     assert.equal(memory.readUInt16BE(220), 65535)
     assert.equal(powerOffset.snapshot?.values.totalLoadPower, 65535)
     console.log(
-      'PASS: all seven UInt power addresses, integer MW, unsigned bounds, offsets and untouched bytes'
+      'PASS: all seven UInt power addresses, integer kW, unsigned bounds, offsets and untouched bytes'
     )
 
     const beforeInvalid = requests

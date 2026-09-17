@@ -138,17 +138,17 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
   if (document.querySelector('.energy-panel')?.getAttribute('data-architecture') === 'direct')
     await switchMode()
   const fixedPowers = [
-    '0.5 MW',
-    '1.5 MW',
-    '3 MW',
-    '总功率 5 MW',
-    '1 MW',
-    '满载 1 MW',
-    '新能源供电 6 MW',
-    '负载总功率 5 MW'
+    '0.50 kW',
+    '1.50 kW',
+    '3.00 kW',
+    '总功率 5.00 kW',
+    '1.00 kW',
+    '满载 1.00 kW',
+    '新能源供电 6.00 kW',
+    '负载总功率 5.00 kW'
   ]
   const checkFixedPowers = (): void => {
-    const rendered = texts().filter((text) => text.includes('MW'))
+    const rendered = texts().filter((text) => text.includes('kW'))
     check(
       rendered.length === fixedPowers.length &&
         fixedPowers.every((value) => rendered.includes(value)),
@@ -160,30 +160,34 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
   checkFixedPowers()
   await switchMode()
   check(
-    livePowerTexts().every((text) => text.includes('— MW')) && texts().includes('满载 1 MW'),
+    livePowerTexts().every((text) => text.includes('— kW')) && texts().includes('满载 1.00 kW'),
     'Switching to direct mode while offline must not retain example powers'
   )
   await render()
   const initial = texts()
   for (const value of [
-    '0.006 MW',
-    '满载 1 MW',
-    '3 MW',
-    '5 MW',
-    '4 MW',
-    '12 MW',
-    '新能源供电 11.994 MW',
-    '负载总功率 12 MW'
+    '6.00 kW',
+    '满载 1.00 kW',
+    '3.00 kW',
+    '5.00 kW',
+    '4.00 kW',
+    '12.00 kW',
+    '新能源供电 6.00 kW',
+    '负载总功率 12.00 kW'
   ])
     check(initial.includes(value), `Missing initial power ${value}`)
   checkDirections('charge', 'import')
   check(
-    !initial.some((text) => ['3.000 MW', '2.500 MW', '3.600 MW', '2.900 MW'].includes(text)),
+    Konva.stages.every((stage) =>
+      stage
+        .find<Konva.Group>('.energy-solar-node')
+        .every((node) => node.find<Konva.Text>('Text').every((text) => !text.text().includes('kW')))
+    ),
     'Direct mode must hide individual PV powers'
   )
   const readings = getEnergyPowerReadings({ ...snapshot, devices: [...snapshot.devices].reverse() })
   check(
-    JSON.stringify(readings.photovoltaic) === '[0.003,0.0025,0.0036,0.0029]',
+    JSON.stringify(readings.photovoltaic) === '[3,2.5,3.6,2.9]',
     'PV readings must follow device IDs, not arrival order'
   )
   const updated: TelemetrySnapshot = {
@@ -203,17 +207,17 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
     }))
   }
   await render(updated)
-  check(texts().includes('0 MW'), 'Valid zero power must remain zero')
+  check(texts().includes('0.00 kW'), 'Valid zero power must remain zero')
   check(
-    texts().includes('65535 MW') &&
-      texts().includes('新能源供电 65535.00052 MW') &&
-      texts().includes('负载总功率 18 MW'),
+    texts().includes('65535.00 kW') &&
+      texts().includes('新能源供电 65535.52 kW') &&
+      texts().includes('负载总功率 18.00 kW'),
     'UInt upper boundary must not be signed or scaled'
   )
-  check(texts().includes('-0.00052 MW'), 'V × A must convert to MW and retain the PLC sign')
+  check(texts().includes('-0.52 kW'), 'V × A must convert to kW and retain the PLC sign')
   check(
-    texts().includes('满载 1 MW'),
-    'Storage rating must stay fixed at 1 MW despite PLC rated power updates'
+    texts().includes('满载 1.00 kW'),
+    'Storage rating must stay fixed at 1.00 kW despite PLC rated power updates'
   )
   checkDirections('discharge', 'export')
   const changed: TelemetrySnapshot = {
@@ -227,30 +231,30 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
       totalLoadPower: 6
     },
     devices: snapshot.devices.map((device) =>
-      device.kind === 'battery' ? { ...device, voltage: 1000, current: 1000 } : device
+      device.kind === 'battery' ? { ...device, voltage: 100, current: 10 } : device
     )
   }
   await render(changed)
   for (const value of [
-    '5 MW',
-    '1 MW',
-    '2 MW',
-    '3 MW',
-    '1.000 MW',
-    '新能源供电 4 MW',
-    '负载总功率 6 MW'
+    '5.00 kW',
+    '1.00 kW',
+    '2.00 kW',
+    '3.00 kW',
+    '1.00 kW',
+    '新能源供电 4.00 kW',
+    '负载总功率 6.00 kW'
   ])
     check(texts().includes(value), `PLC update must show ${value}`)
   checkDirections('charge', 'import')
   const discharging = {
     ...changed,
     devices: changed.devices.map((device) =>
-      device.kind === 'battery' ? { ...device, current: -1000 } : device
+      device.kind === 'battery' ? { ...device, current: -10 } : device
     )
   }
   await render(discharging)
   check(
-    texts().includes('新能源供电 6 MW'),
+    texts().includes('新能源供电 6.00 kW'),
     'Negative storage power must add discharged power to renewable supply'
   )
   checkDirections('discharge', 'idle')
@@ -261,7 +265,7 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
       device.kind === 'battery' ? { ...device, current: 0 } : device
     )
   })
-  check(texts().includes('0.000 MW'), 'Idle storage must display a valid zero')
+  check(texts().includes('0.00 kW'), 'Idle storage must display a valid zero')
   checkDirections('idle', 'idle')
   for (const batteryPatch of [{ status: 'offline' as const }, { current: NaN }]) {
     await render({
@@ -270,24 +274,24 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
         device.kind === 'battery' ? { ...device, ...batteryPatch } : device
       )
     })
-    check(texts().includes('新能源供电 — MW'), 'Unknown storage must not be treated as zero supply')
+    check(texts().includes('新能源供电 — kW'), 'Unknown storage must not be treated as zero supply')
     checkDirections('idle', 'idle')
   }
   await render({ ...updated, plcConnected: false })
   check(
-    livePowerTexts().every((text) => text.includes('— MW')),
+    livePowerTexts().every((text) => text.includes('— kW')),
     'Offline PLC must not display stale powers'
   )
   checkDirections('idle', 'idle')
   await render(snapshot, false)
   check(
-    livePowerTexts().every((text) => text.includes('— MW')),
+    livePowerTexts().every((text) => text.includes('— kW')),
     'Disconnected realtime service must not display stale powers'
   )
   checkDirections('idle', 'idle')
   await render({ ...snapshot, powers: undefined, devices: [] })
   check(
-    livePowerTexts().every((text) => text.includes('— MW')),
+    livePowerTexts().every((text) => text.includes('— kW')),
     'Missing data must not appear as zero'
   )
   checkDirections('idle', 'idle')
@@ -298,7 +302,7 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
   for (const stage of Konva.stages) {
     for (const node of stage
       .find<Konva.Text>('Text')
-      .filter((node) => node.text().includes('MW'))) {
+      .filter((node) => node.text().includes('kW'))) {
       check(
         node.measureSize(node.text()).width <= node.width() + 1,
         `Power label wraps at large font: ${node.text()}`
@@ -317,10 +321,10 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
   await render()
   return [
     'PASS: traditional fixed fractional powers remain available without telemetry; offline direct mode hides example values',
-    'PASS: all device powers and totals render in MW',
+    'PASS: all device powers and totals render in kW',
     'PASS: telemetry updates, zero, UInt maximum, negative storage, device ordering',
     'PASS: positive PLC storage charges, negative discharges; storage/grid directions are mutually exclusive; zero and missing data do not animate',
-    'PASS: live PV and load readings, signed renewable supply calculation, fixed 1 MW rating and hidden PV string powers',
+    'PASS: live PV and load readings, signed renewable supply calculation, fixed 1.00 kW rating and hidden PV string powers',
     'PASS: PLC/service disconnect and missing readings hide stale values',
     'PASS: maximum power labels fit at 130% font size'
   ]

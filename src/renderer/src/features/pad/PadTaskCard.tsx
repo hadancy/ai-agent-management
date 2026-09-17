@@ -1,3 +1,4 @@
+import { formatMeasurement } from '../../../../shared/number-format'
 import { useState, type FormEvent } from 'react'
 import type { PadTask, TaskAction } from './taskClient'
 import { getPlanAdvice } from '../../../../shared/agrivoltaic-analysis'
@@ -523,7 +524,9 @@ function TiltAdjustmentForm({
       adjustedAngle < advice.minAngle ||
       adjustedAngle > advice.maxAngle
     ) {
-      setError(`请填写${advice.minAngle}至${advice.maxAngle}度范围内的实际倾角。`)
+      setError(
+        `请填写${formatMeasurement(advice.minAngle)}至${formatMeasurement(advice.maxAngle)}度范围内的实际倾角。`
+      )
       return
     }
     if (!fastening || !retest) {
@@ -543,7 +546,7 @@ function TiltAdjustmentForm({
       <div className="task-form-heading">
         <strong>提交{advice.season}倾角调整结果</strong>
         <span>
-          目标倾角：{advice.minAngle}至{advice.maxAngle}度
+          目标倾角：{formatMeasurement(advice.minAngle)}至{formatMeasurement(advice.maxAngle)}度
         </span>
       </div>
       <label className="task-field">

@@ -5,14 +5,14 @@ export interface PlcConnection {
   registerAddressOffset: number
 }
 
-// Power unit confirmed by the user: UInt readings are integer MW, with no scaling.
+// Power unit confirmed by the user: UInt readings are integer kW, with no scaling.
 export const PLC_POWER_POINTS = [
   {
     id: 'photovoltaicPower',
     label: '光伏发电实际功率',
     address: '%MW110',
     register: 55,
-    unit: 'MW',
+    unit: 'kW',
     type: 'UINT',
     scale: 1
   },
@@ -21,7 +21,7 @@ export const PLC_POWER_POINTS = [
     label: '储能模块满载供电功率',
     address: '%MW112',
     register: 56,
-    unit: 'MW',
+    unit: 'kW',
     type: 'UINT',
     scale: 1
   },
@@ -30,7 +30,7 @@ export const PLC_POWER_POINTS = [
     label: '一级负载功率',
     address: '%MW114',
     register: 57,
-    unit: 'MW',
+    unit: 'kW',
     type: 'UINT',
     scale: 1
   },
@@ -39,7 +39,7 @@ export const PLC_POWER_POINTS = [
     label: '二级负载功率',
     address: '%MW116',
     register: 58,
-    unit: 'MW',
+    unit: 'kW',
     type: 'UINT',
     scale: 1
   },
@@ -48,7 +48,7 @@ export const PLC_POWER_POINTS = [
     label: '三级负载功率',
     address: '%MW118',
     register: 59,
-    unit: 'MW',
+    unit: 'kW',
     type: 'UINT',
     scale: 1
   },
@@ -57,7 +57,7 @@ export const PLC_POWER_POINTS = [
     label: '负载总实际功率',
     address: '%MW200',
     register: 100,
-    unit: 'MW',
+    unit: 'kW',
     type: 'UINT',
     scale: 1
   },
@@ -66,7 +66,7 @@ export const PLC_POWER_POINTS = [
     label: '新能源系统供电总功率',
     address: '%MW210',
     register: 105,
-    unit: 'MW',
+    unit: 'kW',
     type: 'UINT',
     scale: 1
   }

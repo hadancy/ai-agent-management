@@ -30,7 +30,7 @@ import { formatPower, getEnergyPowerReadings } from './powerReadings'
 import {
   ARCHITECTURE_UPGRADE_MS,
   ENERGY_ARCHITECTURES,
-  STORAGE_RATED_POWER_MW,
+  STORAGE_RATED_POWER_KW,
   TRADITIONAL_POWERS,
   type EnergyArchitecture
 } from './architecture'
@@ -736,7 +736,7 @@ function StorageNode({
         x={100}
         y={53}
         width={106}
-        text={formatPower(power, !traditional)}
+        text={formatPower(power)}
         fill="#7ee9d2"
         fontFamily={FONT_FAMILY}
         fontSize={14}
@@ -746,7 +746,7 @@ function StorageNode({
         name="energy-rated-power"
         x={100}
         y={78}
-        text={`满载 ${formatPower(STORAGE_RATED_POWER_MW)}`}
+        text={`满载 ${formatPower(STORAGE_RATED_POWER_KW)}`}
         fill="#a9c7da"
         fontFamily={FONT_FAMILY}
         fontSize={10}
@@ -946,7 +946,7 @@ export default function EnergyFlowCanvas({
     ? states.storage
     : directionalState(readings.storage, true, states.storage)
   // No grid direction register is supplied. Infer the net exchange from live power balance.
-  // Round to the displayed MW precision to avoid a false direction from floating-point residue.
+  // Keep calculation precision for flow direction; display rounding must not change the balance.
   const gridPower =
     powers.totalLoadPower !== undefined && powers.renewableSupplyPower !== undefined
       ? Number((powers.totalLoadPower - powers.renewableSupplyPower).toFixed(6))
@@ -966,7 +966,7 @@ export default function EnergyFlowCanvas({
       ? `${presentation.title}：固定示例，电网经变压器、光伏经并网逆变器接入交流母线，供给交流灯、交流风扇和交流电机；储能经双向变流器充电。`
       : `${presentation.title}：同一套电网接入、光伏组串和储能设备，光伏经DC/DC变换接入直流母线，直接供给直流灯、直流风扇和直流电机。`) +
     `${stateValues.filter((state) => state === 'normal').length}路正常，${stateValues.filter((state) => state === 'disconnected').length}路断开或无输出，${stateValues.filter((state) => state === 'low').length}路电压或电流异常。` +
-    `光伏总功率 ${formatPower(powers.photovoltaicPower)}，储能${traditional ? '示例' : '实时'}功率 ${formatPower(readings.storage, !traditional)}，储能满载功率 ${formatPower(STORAGE_RATED_POWER_MW)}` +
+    `光伏总功率 ${formatPower(powers.photovoltaicPower)}，储能${traditional ? '示例' : '实时'}功率 ${formatPower(readings.storage)}，储能满载功率 ${formatPower(STORAGE_RATED_POWER_KW)}` +
     `，一级负载 ${formatPower(powers.primaryLoadPower)}，二级负载 ${formatPower(powers.secondaryLoadPower)}，三级负载 ${formatPower(powers.tertiaryLoadPower)}，负载总功率 ${formatPower(powers.totalLoadPower)}，新能源供电总功率 ${formatPower(powers.renewableSupplyPower)}`
 
   useEffect(
@@ -1353,9 +1353,9 @@ export default function EnergyFlowCanvas({
               <EnergyText
                 name="energy-power"
                 fitWidth
-                x={184}
+                x={650}
                 y={368}
-                width={214}
+                width={164}
                 text={`新能源供电 ${formatPower(powers.renewableSupplyPower)}`}
                 fill="#a8dcd4"
                 fontFamily={FONT_FAMILY}
@@ -1365,8 +1365,8 @@ export default function EnergyFlowCanvas({
                 name="energy-power"
                 fitWidth
                 x={650}
-                y={368}
-                width={214}
+                y={408}
+                width={164}
                 text={`负载总功率 ${formatPower(powers.totalLoadPower)}`}
                 fill="#a8dcd4"
                 fontFamily={FONT_FAMILY}

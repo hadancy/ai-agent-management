@@ -1,3 +1,4 @@
+import { formatMeasurement } from '../../../../shared/number-format'
 import { useState, type ReactNode } from 'react'
 import { getPlanAdvice } from '../../../../shared/agrivoltaic-analysis'
 import { SEASONAL_ROLES, seasonalChecklist } from '../../../../shared/task-evidence'
@@ -65,7 +66,9 @@ export default function SeasonalTaskForm({
             Number(angle) < advice.minAngle ||
             Number(angle) > advice.maxAngle)
         ) {
-          setError(`实际倾角必须为${advice.minAngle}至${advice.maxAngle}度`)
+          setError(
+            `实际倾角必须为${formatMeasurement(advice.minAngle)}至${formatMeasurement(advice.maxAngle)}度`
+          )
           return
         }
         if (
@@ -210,7 +213,7 @@ export default function SeasonalTaskForm({
           <span>
             {task.role === 'B'
               ? '调整前实际倾角（°）'
-              : `调整后实测倾角（${advice.minAngle}–${advice.maxAngle}°）`}
+              : `调整后实测倾角（${formatMeasurement(advice.minAngle)}–${formatMeasurement(advice.maxAngle)}°）`}
           </span>
           <input
             type="number"

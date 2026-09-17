@@ -1,3 +1,4 @@
+import { formatMeasurement } from '../../../../../shared/number-format'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { STATION_TIME_ZONE } from '../../../../../shared/plc-clock'
 import { compareWorkOrders } from '../../../../../shared/work-order-sort'
@@ -105,20 +106,19 @@ function formatDateTime(value: string | null | undefined): string {
     .replaceAll('/', '-')
 }
 
-function formatNumber(value: number | null | undefined, digits = 2): string {
-  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '—'
-}
-
 function formatResultValue(key: string, value: unknown): string {
   if (key === 'treatmentAction' && typeof value === 'string') {
     return TREATMENT_LABELS[value] ?? value
   }
-  if (key === 'measuredTemperature' && typeof value === 'number') return `${value} ℃`
+  if (key === 'measuredTemperature' && typeof value === 'number')
+    return `${formatMeasurement(value)} ℃`
   if (typeof value === 'boolean') {
     if (key === 'unresolvedHazards') return value ? '有' : '无'
     if (key === 'voltageTestPassed' || key === 'retestPassed') return value ? '合格' : '不合格'
     return value ? '已确认' : '未确认'
   }
+  if (['beforeAngle', 'adjustedAngle'].includes(key) && typeof value === 'number')
+    return `${formatMeasurement(value)}°`
   if (typeof value === 'number' || typeof value === 'string') return String(value)
   return JSON.stringify(value)
 }
@@ -375,11 +375,11 @@ function PlcVerificationCard({
         </p>
         <p>
           <span>电压</span>
-          <strong>{formatNumber(verification?.lastVoltage)} V</strong>
+          <strong>{formatMeasurement(verification?.lastVoltage)} V</strong>
         </p>
         <p>
           <span>电流</span>
-          <strong>{formatNumber(verification?.lastCurrent)} A</strong>
+          <strong>{formatMeasurement(verification?.lastCurrent)} A</strong>
         </p>
         <p>
           <span>判定</span>
@@ -911,15 +911,15 @@ export default function WorkOrderCenter({
                             <section className="work-order-alarm-data">
                               <span>报警数据</span>
                               <h4>
-                                {formatNumber(selected.alarm.voltage)} V
+                                {formatMeasurement(selected.alarm.voltage)} V
                                 <i />
-                                {formatNumber(selected.alarm.current)} A
+                                {formatMeasurement(selected.alarm.current)} A
                               </h4>
                               <p>
-                                正常区间：{formatNumber(selected.normalRange.voltageMin)}–
-                                {formatNumber(selected.normalRange.voltageMax)} V /{' '}
-                                {formatNumber(selected.normalRange.currentMin)}–
-                                {formatNumber(selected.normalRange.currentMax)} A
+                                正常区间：{formatMeasurement(selected.normalRange.voltageMin)}–
+                                {formatMeasurement(selected.normalRange.voltageMax)} V /{' '}
+                                {formatMeasurement(selected.normalRange.currentMin)}–
+                                {formatMeasurement(selected.normalRange.currentMax)} A
                               </p>
                             </section>
                           )}

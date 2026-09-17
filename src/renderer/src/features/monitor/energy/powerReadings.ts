@@ -1,8 +1,8 @@
 import type { TelemetrySnapshot } from '../../../../../shared/contracts'
 import type { PlcPowerValues } from '../../../../../shared/plc'
-import { calculatePowerMW } from '../../../../../shared/power-units'
+import { calculatePowerKW } from '../../../../../shared/power-units'
 
-export { formatPowerMW as formatPower } from '../../../../../shared/power-units'
+export { formatPowerKW as formatPower } from '../../../../../shared/power-units'
 
 export function getEnergyPowerReadings(
   telemetry?: TelemetrySnapshot,
@@ -16,7 +16,7 @@ export function getEnergyPowerReadings(
   const calculatedPower = (id: string): number | undefined => {
     const device = telemetry?.devices.find((item) => item.id === id)
     if (!available || !device || device.status === 'offline') return undefined
-    const power = calculatePowerMW(device.voltage, device.current)
+    const power = calculatePowerKW(device.voltage, device.current)
     return Number.isFinite(power) ? power : undefined
   }
   const storage = calculatedPower(

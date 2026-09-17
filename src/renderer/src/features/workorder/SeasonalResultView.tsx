@@ -1,3 +1,4 @@
+import { formatMeasurement } from '../../../../shared/number-format'
 import {
   SEASONAL_ROLES,
   seasonalChecklist,
@@ -45,13 +46,13 @@ export default function SeasonalResultView({
         {result.beforeAngle !== undefined && (
           <div>
             <dt>调整前实际倾角</dt>
-            <dd>{result.beforeAngle}°</dd>
+            <dd>{formatMeasurement(result.beforeAngle)}°</dd>
           </div>
         )}
         {result.adjustedAngle !== undefined && (
           <div>
             <dt>调整后实测倾角</dt>
-            <dd>{result.adjustedAngle}°</dd>
+            <dd>{formatMeasurement(result.adjustedAngle)}°</dd>
           </div>
         )}
         {result.sampleCount !== undefined && (

@@ -1,3 +1,4 @@
+import { formatMeasurement } from '../../../../shared/number-format'
 import { useEffect, useRef, useState } from 'react'
 import {
   PLC_CLOCK_FIELDS,
@@ -36,7 +37,7 @@ function toConnectionDraft(connection: PlcConnection): ConnectionDraft {
 function formatValue(value: number | null | undefined): string {
   if (value === undefined) return '—'
   if (value === null) return '无效数值'
-  return String(Number(value.toPrecision(8)))
+  return formatMeasurement(value)
 }
 
 function toClockDraft(clock: PlcClockValues): ClockDraft {
@@ -449,7 +450,7 @@ export default function PlcDebugPage(): React.JSX.Element {
                         {point.type === 'WORD'
                           ? `WORD · 16 位无符号 · ÷${point.scale}`
                           : point.type === 'UINT'
-                            ? 'UInt · 16 位无符号 · 整数 MW'
+                            ? 'UInt · 16 位无符号 · 整数 kW'
                             : 'REAL · 32 位浮点'}
                       </span>
                     </td>
@@ -460,7 +461,7 @@ export default function PlcDebugPage(): React.JSX.Element {
                         {point.type === 'REAL' ? `–${register + 1}` : ''}
                       </span>
                     </td>
-                    <td className="plc-current" title={String(snapshot?.values[point.id] ?? '')}>
+                    <td className="plc-current" title={formatValue(snapshot?.values[point.id])}>
                       {formatValue(snapshot?.values[point.id])} <small>{point.unit}</small>
                     </td>
                     <td>
@@ -478,7 +479,7 @@ export default function PlcDebugPage(): React.JSX.Element {
                             point.type === 'WORD'
                               ? `输入换算后的数值（0–${65535 / point.scale}，最多${Math.log10(point.scale)}位小数），写入时自动乘以${point.scale}`
                               : point.type === 'UINT'
-                                ? '输入整数功率（0–65535 MW），直接写入原始值'
+                                ? '输入整数功率（0–65535 kW），直接写入原始值'
                                 : '输入32位浮点数'
                           }
                           disabled={Boolean(busy) || !snapshot}

@@ -1,3 +1,4 @@
+import { formatMeasurement } from '../../../../../shared/number-format'
 import { useMemo } from 'react'
 import { useFontScale } from '../../../settings/fontSize'
 import type { TelemetrySnapshot } from '../../../../../shared/contracts'
@@ -32,7 +33,7 @@ function createRealtimeTooltip(params: unknown, devices: RealtimeDeviceSeries[])
   const rows = devices
     .map(
       (device) =>
-        `<div style="display:grid;grid-template-columns:64px 1fr;gap:12px;margin-top:5px"><span><i style="display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:50%;background:${device.color}"></i>${device.name}</span><strong style="text-align:right">${device.voltageValues[dataIndex]?.toFixed(2) ?? '--'} V / ${device.currentValues[dataIndex]?.toFixed(2) ?? '--'} A</strong></div>`
+        `<div style="display:grid;grid-template-columns:64px 1fr;gap:12px;margin-top:5px"><span><i style="display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:50%;background:${device.color}"></i>${device.name}</span><strong style="text-align:right">${formatMeasurement(device.voltageValues[dataIndex])} V / ${formatMeasurement(device.currentValues[dataIndex])} A</strong></div>`
     )
     .join('')
 
@@ -124,8 +125,8 @@ export default function RealtimeChart({
         fontFamily: 'Inter, "PingFang SC", "Microsoft YaHei", sans-serif'
       },
       grid: {
-        left: 47 * fontScale,
-        right: 43 * fontScale,
+        left: 62 * fontScale,
+        right: 57 * fontScale,
         top: 21 * fontScale,
         bottom: 29 * fontScale
       },
@@ -162,7 +163,7 @@ export default function RealtimeChart({
           nameTextStyle: { color: '#b0b5bc', fontSize: 10 * fontScale, padding: [0, 0, 0, -8] },
           axisLine: { show: true, lineStyle: { color: 'rgba(137, 154, 169, 0.48)' } },
           axisTick: { show: false },
-          axisLabel: { color: '#aaaeb5', fontSize: 10 * fontScale },
+          axisLabel: { color: '#aaaeb5', fontSize: 10 * fontScale, formatter: formatMeasurement },
           splitLine: {
             show: true,
             lineStyle: { color: 'rgba(103, 127, 146, 0.2)', type: 'dashed' }
@@ -177,7 +178,7 @@ export default function RealtimeChart({
           nameTextStyle: { color: '#b0b5bc', fontSize: 10 * fontScale, padding: [0, -5, 0, 0] },
           axisLine: { show: true, lineStyle: { color: 'rgba(137, 154, 169, 0.48)' } },
           axisTick: { show: false },
-          axisLabel: { color: '#aaaeb5', fontSize: 10 * fontScale },
+          axisLabel: { color: '#aaaeb5', fontSize: 10 * fontScale, formatter: formatMeasurement },
           splitLine: { show: false }
         }
       ],

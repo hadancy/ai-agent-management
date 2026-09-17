@@ -210,17 +210,17 @@ async function runEnergyArchitectureSmoke(): Promise<string[]> {
   ])
     check(!texts().some((text) => text.includes(removed)), `Unexpected device ${removed}`)
   const traditionalDevices = deviceLayout()
-  const traditionalPowers = texts().filter((text) => text.includes('MW'))
+  const traditionalPowers = texts().filter((text) => text.includes('kW'))
   check(
     [
-      '0.5 MW',
-      '1.5 MW',
-      '3 MW',
-      '总功率 5 MW',
-      '1 MW',
-      '满载 1 MW',
-      '新能源供电 6 MW',
-      '负载总功率 5 MW'
+      '0.50 kW',
+      '1.50 kW',
+      '3.00 kW',
+      '总功率 5.00 kW',
+      '1.00 kW',
+      '满载 1.00 kW',
+      '新能源供电 6.00 kW',
+      '负载总功率 5.00 kW'
     ].every((value) => traditionalPowers.includes(value)) && traditionalPowers.length === 8,
     'Traditional mode must show the annotated fixed powers without string-level readings'
   )
@@ -244,7 +244,7 @@ async function runEnergyArchitectureSmoke(): Promise<string[]> {
   await pause()
   check(highlight('traditional'), 'Traditional conversion region must highlight')
   check(
-    document.querySelector('.energy-efficiency-callout')?.textContent === '综合效率91.2%',
+    document.querySelector('.energy-efficiency-callout')?.textContent === '综合效率91.20%',
     'Traditional percentage must be visible'
   )
   check(
@@ -328,14 +328,14 @@ async function runEnergyArchitectureSmoke(): Promise<string[]> {
   )
   check(
     [
-      '0.00052 MW',
-      '3 MW',
-      '5 MW',
-      '4 MW',
-      '12 MW',
-      '满载 1 MW',
-      '新能源供电 11.99948 MW',
-      '负载总功率 12 MW'
+      '0.52 kW',
+      '3.00 kW',
+      '5.00 kW',
+      '4.00 kW',
+      '12.00 kW',
+      '满载 1.00 kW',
+      '新能源供电 11.48 kW',
+      '负载总功率 12.00 kW'
     ].every((value) => texts().includes(value)),
     'Direct mode must return to telemetry powers and totals'
   )
@@ -343,7 +343,7 @@ async function runEnergyArchitectureSmoke(): Promise<string[]> {
     Konva.stages.every((stage) =>
       stage
         .find<Konva.Group>('.energy-solar-node')
-        .every((node) => node.find<Konva.Text>('Text').every((text) => !text.text().includes('MW')))
+        .every((node) => node.find<Konva.Text>('Text').every((text) => !text.text().includes('kW')))
     ),
     'Direct mode must also hide the crossed-out PV string powers'
   )
@@ -352,7 +352,8 @@ async function runEnergyArchitectureSmoke(): Promise<string[]> {
       stage
         .find<Konva.Text>('.energy-photovoltaic-power')
         .some(
-          (node) => node.text() === '12 MW' && node.fontStyle() === 'bold' && node.fontSize() === 14
+          (node) =>
+            node.text() === '12.00 kW' && node.fontStyle() === 'bold' && node.fontSize() === 14
         )
     ),
     'Direct photovoltaic power must be emphasized like the storage reading'
@@ -389,7 +390,7 @@ async function runEnergyArchitectureSmoke(): Promise<string[]> {
     'Only the direct path may remain highlighted'
   )
   check(
-    document.querySelector('.energy-efficiency-callout')?.textContent === '综合变换效率约97%',
+    document.querySelector('.energy-efficiency-callout')?.textContent === '综合变换效率约97.00%',
     'Direct percentage must be visible'
   )
   check(
@@ -432,7 +433,7 @@ async function runEnergyArchitectureSmoke(): Promise<string[]> {
   )
   check(deviceLayout() === traditionalDevices, 'Switching back must preserve all devices')
   check(
-    JSON.stringify(texts().filter((text) => text.includes('MW'))) ===
+    JSON.stringify(texts().filter((text) => text.includes('kW'))) ===
       JSON.stringify(traditionalPowers),
     'Switching back must restore fixed example powers'
   )
@@ -444,7 +445,7 @@ async function runEnergyArchitectureSmoke(): Promise<string[]> {
   await pause()
   check(
     highlight('traditional') &&
-      document.querySelector('.energy-efficiency-callout')?.textContent === '综合效率91.2%' &&
+      document.querySelector('.energy-efficiency-callout')?.textContent === '综合效率91.20%' &&
       requests.at(-1)?.text.includes('91.2%'),
     'Restored traditional mode must use its own efficiency and narration'
   )

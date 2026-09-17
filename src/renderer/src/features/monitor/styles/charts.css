@@ -259,6 +259,16 @@
   opacity: 0.4;
 }
 
+.chart-legend--power .power-chart-grid-power {
+  gap: 5px;
+  padding: 3px 0;
+  color: #8ba8b9;
+}
+
+.power-chart-grid-power .key {
+  background: currentColor;
+}
+
 .chart-legend--power .key {
   width: 15px;
 }

@@ -303,15 +303,22 @@ async function runTiltAssistantSmoke(): Promise<string[]> {
   check((await orders()).length === 1, '重试不能重复创建')
   await until(() => Number(spoken.length) === 2, '第二轮成功后自动播报')
   check(
-    spoken[1].includes('基准倾角为21–23°') &&
-      spoken[1].endsWith('现在是9月23日，执行秋季倾角，工单已生成。'),
-    '播报应包含四季策略和实际日期结论'
+    spoken[1] ===
+      '基准倾角为21–23°\n秋季：回归基准，平衡发电与秋茶品质。\n现在是9月23日，执行秋季倾角，工单已生成。',
+    '播报只包含基准倾角、当前季节策略和实际日期结论'
+  )
+  check(
+    panel().querySelector('.tilt-seasonal-results')!.querySelectorAll('p').length === 4,
+    '文字回答仍应显示四季完整建议'
   )
   check(
     text().includes('NG-GQ-20260923-001') && text().includes('2026.09.23～2026.11.07'),
     '工单编号和维持周期应跟随日期'
   )
-  check(text().includes('22°（允许偏差 ±1°）') && text().includes('禁止夜间作业'), '工单内容完整')
+  check(
+    text().includes('22.00°（允许偏差 ±1.00°）') && text().includes('禁止夜间作业'),
+    '工单内容完整'
+  )
   check((await fetchPadTasks(ORIGIN, 'C')).length === 0, '人工下发前C平台不可见')
   const workOrder = (await orders())[0]
   check(
@@ -339,6 +346,9 @@ async function runTiltAssistantSmoke(): Promise<string[]> {
     '刷新后历史日期和策略不能变化'
   )
   check(Number(spoken.length) === 2, '历史记录不能自动重播')
+  panel().querySelectorAll<HTMLButtonElement>('.diagnosis-voice')[1].click()
+  await until(() => Number(spoken.length) === 3, '历史季节建议可手动重播')
+  check(spoken[2] === spoken[1], '跨季重播应保留原分析日期对应的秋季文段')
   typeRequest(ANALYSIS_PROMPTS.seasonal)
   await pause()
   button('发送').click()
@@ -360,8 +370,14 @@ async function runTiltAssistantSmoke(): Promise<string[]> {
   )
   await finishAnalysis('seasonal')
   await until(() => text().includes('NG-GQ-20261223-001'), '冬季应按新日期创建工单')
+  await until(() => Number(spoken.length) === 4, '冬季工单生成后应自动播报')
   check(
-    text().includes('34°（允许偏差 ±1°）') && text().includes('2026.12.23～2027.02.03'),
+    spoken[3] ===
+      '基准倾角为21–23°\n冬季：基准+12°，多发电、自动除雪、防霜冻。\n现在是12月23日，执行冬季倾角，工单已生成。',
+    '日期切换后仅播报冬季建议'
+  )
+  check(
+    text().includes('34.00°（允许偏差 ±1.00°）') && text().includes('2026.12.23～2027.02.03'),
     '冬季目标和跨年周期正确'
   )
   check((await fetchPadTasks(ORIGIN, 'C')).length === 1, '第二张草稿仍不能自动下发')
@@ -458,7 +474,7 @@ async function runTiltAssistantSmoke(): Promise<string[]> {
     '工单详情应展示完整维持周期'
   )
   check(
-    document.querySelector('.work-order-meta')!.textContent!.includes('22°（允许偏差 ±1°）'),
+    document.querySelector('.work-order-meta')!.textContent!.includes('22.00°（允许偏差 ±1.00°）'),
     '工单中心目标角度正确'
   )
   root.unmount()

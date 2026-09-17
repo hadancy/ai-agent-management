@@ -1,3 +1,4 @@
+import { formatMeasurement } from './number-format'
 import type { TiltAdjustmentPlan } from './tilt-adjustment'
 import { getPlanAdvice, seasonalStrategy } from './agrivoltaic-analysis'
 
@@ -41,10 +42,10 @@ export function seasonalChecklist(
   const target = (advice.minAngle + advice.maxAngle) / 2
   const previous =
     {
-      春季: '冬季档位 33–35°',
-      夏季: '春季档位 19–21°',
-      秋季: '夏季档位 18–20°',
-      冬季: '秋季档位 21–23°'
+      春季: '冬季档位 33.00–35.00°',
+      夏季: '春季档位 19.00–21.00°',
+      秋季: '夏季档位 18.00–20.00°',
+      冬季: '秋季档位 21.00–23.00°'
     }[advice.season] ?? '上一季节档位'
   if (role === 'B')
     return [
@@ -56,13 +57,13 @@ export function seasonalChecklist(
   if (role === 'C')
     return [
       ['安全技术交底', '作业负责人完成安全、技术交底，明确参数与风险点'],
-      ['倾角调节操作', `松开铰接螺栓，调至目标倾角 ${target}°，倾角仪实测校验`],
+      ['倾角调节操作', `松开铰接螺栓，调至目标倾角 ${formatMeasurement(target)}°，倾角仪实测校验`],
       ['螺栓紧固锁止', '锁紧全部调节螺栓、安装防松垫片，防止风力偏移角度'],
       ['板下光照复核', '调角后板下保留充足漫射光，不造成茶园过度遮阴'],
       ['现场清理', '回收工具，撤除围挡，清理现场杂物，无构件压损茶株']
     ]
   return [
-    ['支架倾角', `目标 ${target}°，偏差控制 ±1° 以内`],
+    ['支架倾角', `目标 ${formatMeasurement(target)}°，偏差控制 ±1.00° 以内`],
     ['紧固件状态', '调节螺栓全部锁紧，防松垫片齐全，无松动虚接'],
     ['组件与阵列', '组件无移位、无隐裂，阵列无互相遮挡'],
     [

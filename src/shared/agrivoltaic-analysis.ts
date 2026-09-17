@@ -1,3 +1,4 @@
+import { formatMeasurement } from './number-format'
 import { STATION_TIME_ZONE } from './plc-clock'
 import { getTiltAdvice, isAnalysisDate, type TiltAdjustmentPlan } from './tilt-adjustment'
 
@@ -169,6 +170,14 @@ export function seasonalConclusion(date: string, created: boolean): string {
   const { season } = seasonalStrategy(date)
   return `现在是${Number(date.slice(5, 7))}月${Number(date.slice(8))}日，执行${season}倾角，${created ? '工单已生成。' : '正在生成工单…'}`
 }
+export function seasonalSpeechText(date: string): string {
+  const { season } = seasonalStrategy(date)
+  return [
+    SEASONAL_RESULT[0],
+    SEASONAL_RESULT.find((line) => line.startsWith(`${season}：`))!,
+    seasonalConclusion(date, true)
+  ].join('\n')
+}
 export function seasonalWorkOrderFields(plan: TiltAdjustmentPlan): Array<[string, string]> {
   const date = plan.analysisDate!
   const strategy = seasonalStrategy(date)
@@ -177,13 +186,13 @@ export function seasonalWorkOrderFields(plan: TiltAdjustmentPlan): Array<[string
     ['作业工单名称', `支架倾角季节性调整-${strategy.season}模式`],
     ['作业日期', date.replaceAll('-', '.')],
     ['计划执行时段', '09:00–17:00'],
-    ['天气条件要求', '无暴雨、大风，风速≤10 m/s，晴天/多云，禁止夜间作业'],
+    ['天气条件要求', '无暴雨、大风，风速≤10.00 m/s，晴天/多云，禁止夜间作业'],
     ['作业对象', '手动季节可调支架阵列'],
     [
       '调整依据',
-      `1. 光明村光照及茶叶作物生长特性；\n2. 项目倾角技术方案（${strategy.season}：${strategy.minAngle}–${strategy.maxAngle}°）；\n3. 省农光互补项目建设管理规定，保障板下农业生产条件。`
+      `1. 光明村光照及茶叶作物生长特性；\n2. 项目倾角技术方案（${strategy.season}：${formatMeasurement(strategy.minAngle)}–${formatMeasurement(strategy.maxAngle)}°）；\n3. 省农光互补项目建设管理规定，保障板下农业生产条件。`
     ],
-    ['本次目标倾角', `${strategy.targetAngle}°（允许偏差 ±1°）`],
+    ['本次目标倾角', `${formatMeasurement(strategy.targetAngle)}°（允许偏差 ±1.00°）`],
     ['调整后维持周期', `${date.replaceAll('-', '.')}～${strategy.endDate.replaceAll('-', '.')}`]
   ]
 }

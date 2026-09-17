@@ -8,8 +8,8 @@ import {
 import {
   ANALYSIS_PROMPTS,
   OVERVIEW_CONCLUSION,
-  SEASONAL_RESULT,
   seasonalConclusion,
+  seasonalSpeechText,
   seasonalWorkOrderFields,
   stationDate,
   type AnalysisRound
@@ -76,8 +76,7 @@ function loadConversation(): Conversation[] {
 }
 function speechText(item: Conversation): string {
   if (item.round === 'overview') return OVERVIEW_CONCLUSION
-  if (item.round === 'seasonal')
-    return `${SEASONAL_RESULT.join('\n')}\n${seasonalConclusion(item.plan.analysisDate!, true)}`
+  if (item.round === 'seasonal') return seasonalSpeechText(item.plan.analysisDate!)
   return getTiltReply(item.plan.month)
 }
 
