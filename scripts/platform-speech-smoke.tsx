@@ -9,6 +9,20 @@ function check(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message)
 }
 const pause = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 40))
+async function waitFor(condition: () => unknown, message: string): Promise<void> {
+  // React may commit playback state after the mocked audio starts, especially on CI.
+  const deadline = performance.now() + 5000
+  while (!condition()) {
+    if (performance.now() >= deadline) {
+      const statuses = [...document.querySelectorAll('[role="status"]')]
+        .map((element) => element.textContent?.trim())
+        .join(' | ')
+      throw new Error(`${message}; current status: ${statuses || '(none)'}`)
+    }
+    await pause()
+  }
+}
+
 function click(label: string): void {
   const button = [...document.querySelectorAll('button')].find(
     (button) => button.textContent?.trim() === label
@@ -160,7 +174,10 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
     )
   )
   click('语音播报')
-  await pause()
+  await waitFor(
+    () => document.querySelector('.diagnosis-voice-status')?.textContent === '正在播报',
+    'AI playback status must reach speaking'
+  )
   check(
     spoken.length === 1 && spoken[0].includes('工单草稿已生成'),
     'AI diagnosis uses cloud speech'
@@ -181,12 +198,19 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
   )
   denied = true
   click('语音播报')
-  await pause()
+  await waitFor(
+    () =>
+      document.querySelector('.diagnosis-voice-status')?.textContent?.includes('浏览器需要您点击'),
+    'AI playback status must expose autoplay denial'
+  )
   check(document.body.textContent?.includes('浏览器需要您点击'), 'AI exposes autoplay denial')
   const beforeResume = spoken.length
   denied = false
   click('点击播放')
-  await pause()
+  await waitFor(
+    () => document.querySelector('.diagnosis-voice-status')?.textContent === '正在播报',
+    'Resumed AI audio must reach speaking'
+  )
   check(spoken.length === beforeResume, 'AI resumes existing audio without resynthesis')
   flushSync(() => players.find((player) => player.active)!.finish())
   hold = true
@@ -213,8 +237,13 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
       </StrictMode>
     )
   )
-  await pause()
+  await waitFor(
+    () => document.body.textContent?.includes('进入工单中心查看进度'),
+    'Initial work-order data must finish rendering before closure events'
+  )
   check(spoken.length === initialCount, 'initially closed work orders must stay silent')
+  const closureStatus = (): string =>
+    document.querySelector('[aria-label="工单关闭语音提醒"]')?.textContent ?? ''
   const publishSettings = (revision: string): void => {
     sockets.at(-1)!.dispatchEvent(
       new MessageEvent('message', {
@@ -235,7 +264,10 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
       )
   }
   invalidate()
-  await pause()
+  await waitFor(
+    () => closureStatus().includes('点击播放'),
+    'Newly closed work orders must expose the blocked playback action'
+  )
   check(
     spoken.length === initialCount + 1 && spoken.at(-1)?.includes('WO-NEW'),
     'newly closed work orders announce through platform TTS'
@@ -258,7 +290,13 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
   const beforeSettingsReads = orderReads
   const oldBlockedUrl = players.find((player) => player.src)?.src
   publishSettings('settings-2')
-  await pause()
+  await waitFor(
+    () =>
+      spoken.length === initialCount + 2 &&
+      (!oldBlockedUrl || !urls.has(oldBlockedUrl)) &&
+      closureStatus().includes('点击播放'),
+    'Refreshed closure audio must expose the blocked playback action'
+  )
   check(spoken.length === initialCount + 2, 'settings events regenerate blocked announcements')
   check(!oldBlockedUrl || !urls.has(oldBlockedUrl), 'old blocked audio is released')
   check(
@@ -271,14 +309,24 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
   check(orderReads === beforeSettingsReads, 'speech settings do not trigger work-order reloads')
   denied = false
   click('点击播放')
-  await pause()
+  await waitFor(
+    () => closureStatus().includes('正在播报'),
+    'Resumed closure audio must reach speaking'
+  )
   check(
     spoken.length === initialCount + 2 && players.some((player) => player.active),
     'closure replay uses the prepared clip'
   )
   const playingUrl = players.find((player) => player.active)!.src
   publishSettings('settings-3')
-  await pause()
+  await waitFor(
+    () =>
+      spoken.length === initialCount + 3 &&
+      !urls.has(playingUrl) &&
+      players.filter((player) => player.active).length === 1 &&
+      closureStatus().includes('正在播报'),
+    'Replacement closure audio must reach speaking'
+  )
   check(
     spoken.length === initialCount + 3 && !urls.has(playingUrl),
     'settings events replace audio that is already playing'
@@ -310,7 +358,10 @@ async function runPlatformSpeechSmoke(): Promise<string[]> {
     'recorded voice settings never offer cloud keys or alternative voices'
   )
   click('试听语音')
-  await pause()
+  await waitFor(
+    () => document.querySelector('.speech-settings__message')?.textContent === '正在播报',
+    'Settings preview must reach speaking'
+  )
   check(
     spoken.at(-1)?.includes('故障类型：组件热斑'),
     'settings preview uses the approved diagnosis recording'

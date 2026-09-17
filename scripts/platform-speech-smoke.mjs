@@ -34,6 +34,11 @@ app.whenReady().then(async () => {
   const window = new BrowserWindow({ show: false, webPreferences: { backgroundThrottling: false } })
   try {
     await window.loadFile(join(__dirname, 'index.html'))
+    const cpuThrottle = Number(process.env.SPEECH_SMOKE_CPU_THROTTLE ?? 1)
+    if (cpuThrottle > 1) {
+      window.webContents.debugger.attach('1.3')
+      await window.webContents.debugger.sendCommand('Emulation.setCPUThrottlingRate', { rate: cpuThrottle })
+    }
     const reports = await window.webContents.executeJavaScript('window.runPlatformSpeechSmoke()')
     reports.forEach(report => console.log(report))
     app.exit(0)
