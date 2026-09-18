@@ -252,8 +252,7 @@ async function runTiltAssistantSmoke(): Promise<string[]> {
     '答案应渐进输出，不能整段跳出'
   )
   await finishAnalysis('overview')
-  await until(() => spoken.length === 1, '第一轮结束自动调用平台播报')
-  check(spoken[0] === OVERVIEW_CONCLUSION, '第一轮只播报指定结论')
+  check(Number(spoken.length) === 0, '第一轮结束不自动播报')
   check(
     panel().querySelectorAll('.tilt-comparison-table tbody tr').length === 6,
     '应输出六维对比表'
@@ -271,7 +270,10 @@ async function runTiltAssistantSmoke(): Promise<string[]> {
     '结论应加大加粗'
   )
   check((await orders()).length === 0, '第一轮不创建工单')
-  await until(() => text().includes('点击播放'), '自动播报受阻应提示恢复')
+  button('语音播报').click()
+  await until(() => Number(spoken.length) === 1, '第一轮点击语音播报后调用平台播报')
+  check(spoken[0] === OVERVIEW_CONCLUSION, '第一轮手动播报只读取指定结论')
+  await until(() => text().includes('点击播放'), '手动播报受阻应提示恢复')
   check(!/婷婷|预录音频/.test(text()), '倾角分析不显示音色和录音来源标签')
   denyAudio = false
   button('点击播放').click()

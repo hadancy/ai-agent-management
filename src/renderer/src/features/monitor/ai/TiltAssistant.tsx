@@ -228,7 +228,6 @@ export default function TiltAssistant({
       )
       busyRef.current = false
       setBusy(null)
-      playConclusion(item)
     } else void createDraft(item, generation.current)
   }
   const submitRequest = (userRequest: string): void => {
