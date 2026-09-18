@@ -18,7 +18,7 @@ try {
     format: 'iife',
     jsx: 'automatic',
     loader: { '.png': 'dataurl' },
-    define: { 'process.env.NODE_ENV': '"development"' },
+    define: { 'process.env.NODE_ENV': '"development"', 'import.meta.env.DEV': 'false' },
     outfile: join(directory, 'smoke.js')
   })
   writeFileSync(

@@ -159,6 +159,8 @@ function findForecastRisk(
   let earliestRisk: { device: DeviceForecast; index: number } | undefined
 
   for (const device of forecasts) {
+    // Battery forecasts remain on the chart but do not participate in popup alarms.
+    if (device.id === 'battery') continue
     const index = device.values.findIndex((value) => value < FORECAST_RISK_THRESHOLD)
     if (index >= 0 && (!earliestRisk || index < earliestRisk.index))
       earliestRisk = { device, index }

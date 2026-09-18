@@ -5,7 +5,7 @@ export interface PlcConnection {
   registerAddressOffset: number
 }
 
-// Power unit confirmed by the user: UInt readings are integer kW, with no scaling.
+// Power readings are integer kW with no scaling; storage is signed (negative = charging).
 export const PLC_POWER_POINTS = [
   {
     id: 'photovoltaicPower',
@@ -17,12 +17,12 @@ export const PLC_POWER_POINTS = [
     scale: 1
   },
   {
-    id: 'storageRatedPower',
-    label: '储能模块满载供电功率',
+    id: 'storagePower',
+    label: '储能实时功率',
     address: '%MW112',
     register: 56,
     unit: 'kW',
-    type: 'UINT',
+    type: 'INT',
     scale: 1
   },
   {
@@ -176,8 +176,9 @@ export type PlcPointId = PlcPoint['id']
 export function validatePlcPointValue(point: PlcPoint, value: unknown): string | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value)) return `${point.label}必须为有效数值`
   if (point.type !== 'REAL') {
-    if (value < 0 || value > 65535 / point.scale)
-      return `${point.label}必须为 0–${65535 / point.scale} ${point.unit}`
+    const min = point.type === 'INT' ? -32768 : 0
+    const max = point.type === 'INT' ? 32767 : 65535 / point.scale
+    if (value < min || value > max) return `${point.label}必须为 ${min}–${max} ${point.unit}`
     if (point.scale === 1 && !Number.isInteger(value)) return `${point.label}必须为整数`
     const raw = value * point.scale
     // Allow binary floating-point noise, but never silently round extra decimal places.

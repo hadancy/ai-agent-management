@@ -18,7 +18,7 @@ export function detectDeviceRisk(
       return { id: `pv${number}`, name: `${number}号光伏组件`, realtime: metric }
     })
 
-  if (prediction) {
+  if (prediction && prediction.deviceId !== 'battery') {
     const device = devices.find((item) => item.id === prediction.deviceId)
     if (device) device.prediction = prediction
     else devices.push({ id: prediction.deviceId, name: prediction.deviceName, prediction })

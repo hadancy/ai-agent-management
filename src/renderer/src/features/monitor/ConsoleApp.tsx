@@ -10,6 +10,7 @@ import PowerTrendChart from './charts/PowerTrendChart'
 import MonitorHeader from './components/MonitorHeader'
 import WindowTitleBar from './components/WindowTitleBar'
 import { BASE_STRING_METRICS } from './data'
+import type { EnergyArchitecture } from './energy/architecture'
 import EnergyFlowCanvas from './energy/EnergyFlowCanvas'
 import HomePage from './home/HomePage'
 import MetricOverview from './metrics/MetricOverview'
@@ -22,7 +23,7 @@ import {
   type PhotovoltaicSettings
 } from './settings/photovoltaicSettings'
 import type { ConsoleNav, MonitorSection, StringMetric } from './types'
-import { createWorkOrderDraft, listWorkOrders } from './workorder/api'
+import { createWorkOrderDraft, listWorkOrders, type WorkOrderTarget } from './workorder/api'
 import WorkOrderCenter from './workorder/WorkOrderCenter'
 import './styles/console-layout.css'
 import './styles/window-titlebar.css'
@@ -60,6 +61,9 @@ export default function ConsoleApp(): React.JSX.Element {
       : { name: '蓄电池组', voltage: 0, current: 0 }
   }, [telemetry])
   const [activeNav, setActiveNav] = useState<ConsoleNav>('首页')
+  // Keep the selected diagram for this app session, including when monitoring is unmounted.
+  const [energyArchitecture, setEnergyArchitecture] = useState<EnergyArchitecture>('traditional')
+  const [workOrderTarget, setWorkOrderTarget] = useState<WorkOrderTarget>()
   const [auxiliaryChart, setAuxiliaryChart] = useState<AuxiliaryChart>('forecast')
   const [focusedSection, setFocusedSection] = useState<MonitorSection>()
   const [photovoltaicSettings, setPhotovoltaicSettings] =
@@ -133,11 +137,15 @@ export default function ConsoleApp(): React.JSX.Element {
     })
     setLocalWorkOrderRevision((value) => value + 1)
     return {
+      workOrderId: result.workOrder.id,
       orderNumber: result.workOrder.orderNumber,
       deduplicated: result.deduplicated
     }
   }, [photovoltaicSettings, serviceOrigin, telemetry])
-  const viewWorkOrder = useCallback((): void => setActiveNav('工单中心'), [])
+  const viewWorkOrder = useCallback((target?: WorkOrderTarget): void => {
+    setWorkOrderTarget(target)
+    setActiveNav('工单中心')
+  }, [])
   const refreshWorkOrders = useCallback(
     (): void => setLocalWorkOrderRevision((value) => value + 1),
     []
@@ -149,6 +157,7 @@ export default function ConsoleApp(): React.JSX.Element {
   }, [])
 
   const navigate = useCallback((page: ConsoleNav, section?: MonitorSection): void => {
+    setWorkOrderTarget(undefined)
     if (section === 'forecast') setAuxiliaryChart('forecast')
     setFocusedSection(section)
     setActiveNav(page)
@@ -260,6 +269,8 @@ export default function ConsoleApp(): React.JSX.Element {
         ) : activeNav === '工单中心' ? (
           <main className="console-main console-main--work-orders">
             <WorkOrderCenter
+              key={workOrderTarget?.id ?? workOrderTarget?.orderNumber ?? 'all'}
+              initialWorkOrder={workOrderTarget}
               serviceOrigin={serviceOrigin}
               padUrl={systemInfo?.padUrl}
               refreshToken={workOrderRevision + localWorkOrderRevision}
@@ -299,6 +310,8 @@ export default function ConsoleApp(): React.JSX.Element {
                 className={`monitor-section${focusedSection === 'energy' ? ' monitor-section--focused' : ''}`}
               >
                 <EnergyFlowCanvas
+                  architecture={energyArchitecture}
+                  onArchitectureChange={setEnergyArchitecture}
                   telemetry={telemetry}
                   online={connectionState === 'connected'}
                   routeStates={{ photovoltaic: photovoltaicRouteState, storage: batteryState }}

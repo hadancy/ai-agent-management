@@ -84,7 +84,11 @@ export default function AiAssistantPage({
             </span>
           </button>
         </div>
-        <button type="button" className="assistant-outline-button" onClick={onViewWorkOrder}>
+        <button
+          type="button"
+          className="assistant-outline-button"
+          onClick={() => onViewWorkOrder()}
+        >
           <AssistantIcon name="clipboard" /> 工单中心 <AssistantIcon name="arrow" />
         </button>
       </header>
@@ -151,7 +155,7 @@ export default function AiAssistantPage({
                 {workOrderCount === null ? '—' : String(workOrderCount).padStart(2, '0')}
               </strong>
             </div>
-            <button type="button" onClick={onViewWorkOrder}>
+            <button type="button" onClick={() => onViewWorkOrder()}>
               查看全部工单 <AssistantIcon name="arrow" />
             </button>
           </section>

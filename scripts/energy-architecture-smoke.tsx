@@ -1,8 +1,10 @@
-import { StrictMode } from 'react'
+import { StrictMode, useState, type ComponentProps } from 'react'
 import { createRoot } from 'react-dom/client'
 import { flushSync } from 'react-dom'
 import Konva from 'konva'
 import EnergyFlowCanvas from '../src/renderer/src/features/monitor/energy/EnergyFlowCanvas'
+import ConsoleApp from '../src/renderer/src/features/monitor/ConsoleApp'
+import type { EnergyArchitecture } from '../src/renderer/src/features/monitor/energy/architecture'
 import { initializeFontSize, saveFontScale } from '../src/renderer/src/settings/fontSize'
 import '../src/renderer/src/assets/base.css'
 
@@ -83,13 +85,26 @@ window.fetch = async (input, init) => {
   })
 }
 
+export function TestEnergyFlowCanvas(
+  props: Omit<ComponentProps<typeof EnergyFlowCanvas>, 'architecture' | 'onArchitectureChange'>
+): React.JSX.Element {
+  const [architecture, setArchitecture] = useState<EnergyArchitecture>('traditional')
+  return (
+    <EnergyFlowCanvas
+      {...props}
+      architecture={architecture}
+      onArchitectureChange={setArchitecture}
+    />
+  )
+}
+
 async function render(remount = false): Promise<void> {
   if (remount) mount++
   flushSync(() =>
     root.render(
       <StrictMode>
         <div style={{ width: '100vw', height: '100vh', background: '#061425', display: 'grid' }}>
-          <EnergyFlowCanvas
+          <TestEnergyFlowCanvas
             key={mount}
             telemetry={{
               sequence: 1,
@@ -98,7 +113,7 @@ async function render(remount = false): Promise<void> {
               plcConnected: true,
               powers: {
                 photovoltaicPower: 12,
-                storageRatedPower: 6,
+                storagePower: -6,
                 primaryLoadPower: 3,
                 secondaryLoadPower: 5,
                 tertiaryLoadPower: 4,
@@ -546,7 +561,75 @@ async function runEnergyArchitectureSmoke(): Promise<string[]> {
   reports.push(
     'PASS: pending speech abort, upgrade timer cleanup and audio disposal under StrictMode'
   )
+  await checkNavigationPersistence()
+  reports.push(
+    'PASS: both architecture modes survive every page round trip; a new app session resets to traditional'
+  )
   return reports
+}
+
+async function checkNavigationPersistence(): Promise<void> {
+  const originalFetch = window.fetch
+  const originalSocket = window.WebSocket
+  class TestSocket extends EventTarget {
+    close(): void {
+      // No live service is needed to navigate the console.
+    }
+  }
+  window.WebSocket = TestSocket as unknown as typeof WebSocket
+  window.fetch = async () => new Response('{}', { status: 503 })
+  const mountApp = (): void => {
+    flushSync(() => root.render(null))
+    flushSync(() =>
+      root.render(
+        <StrictMode>
+          <ConsoleApp />
+        </StrictMode>
+      )
+    )
+  }
+  const navigate = async (page: string): Promise<void> => {
+    const item = Array.from(document.querySelectorAll<HTMLButtonElement>('.nav-item')).find(
+      (element) => element.textContent === page
+    )
+    check(item, `Missing navigation item: ${page}`)
+    flushSync(() => item.click())
+    await pause()
+  }
+  const checkMode = (mode: EnergyArchitecture): void => {
+    check(
+      document.querySelector('.energy-panel')?.getAttribute('data-architecture') === mode,
+      `Expected ${mode} architecture after navigation`
+    )
+  }
+  try {
+    mountApp()
+    await navigate('综合监控')
+    checkMode('traditional')
+    for (const mode of ['direct', 'traditional'] as const) {
+      await upgrade()
+      checkMode(mode)
+      for (const page of ['首页', '智诊精巡', '工单中心', '设置中心']) {
+        await navigate(page)
+        check(
+          !document.querySelector('.energy-panel'),
+          'Leaving monitoring must unmount the diagram'
+        )
+        await navigate('综合监控')
+        checkMode(mode)
+      }
+    }
+    await upgrade()
+    checkMode('direct')
+    // A fresh app mount models the renderer starting again, with the same browser storage.
+    mountApp()
+    await navigate('综合监控')
+    checkMode('traditional')
+  } finally {
+    flushSync(() => root.render(null))
+    window.fetch = originalFetch
+    window.WebSocket = originalSocket
+  }
 }
 
 function checkLayout(): void {

@@ -1,8 +1,10 @@
+import { useState, type ComponentProps } from 'react'
 import { createRoot } from 'react-dom/client'
 import { flushSync } from 'react-dom'
 import Konva from 'konva'
 import type { TelemetrySnapshot } from '../src/shared/contracts'
 import EnergyFlowCanvas from '../src/renderer/src/features/monitor/energy/EnergyFlowCanvas'
+import type { EnergyArchitecture } from '../src/renderer/src/features/monitor/energy/architecture'
 import { getEnergyPowerReadings } from '../src/renderer/src/features/monitor/energy/powerReadings'
 import { initializeFontSize, saveFontScale } from '../src/renderer/src/settings/fontSize'
 import '../src/renderer/src/assets/base.css'
@@ -18,7 +20,7 @@ const snapshot: TelemetrySnapshot = {
   plcConnected: true,
   powers: {
     photovoltaicPower: 12,
-    storageRatedPower: 6,
+    storagePower: -6,
     primaryLoadPower: 3,
     secondaryLoadPower: 5,
     tertiaryLoadPower: 4,
@@ -53,6 +55,19 @@ const root = createRoot(document.getElementById('root')!)
 initializeFontSize()
 const pause = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 100))
 
+export function TestEnergyFlowCanvas(
+  props: Omit<ComponentProps<typeof EnergyFlowCanvas>, 'architecture' | 'onArchitectureChange'>
+): React.JSX.Element {
+  const [architecture, setArchitecture] = useState<EnergyArchitecture>('traditional')
+  return (
+    <EnergyFlowCanvas
+      {...props}
+      architecture={architecture}
+      onArchitectureChange={setArchitecture}
+    />
+  )
+}
+
 async function render(
   data: TelemetrySnapshot | undefined = snapshot,
   online = true
@@ -60,7 +75,7 @@ async function render(
   flushSync(() =>
     root.render(
       <div style={{ width: '100vw', height: '100vh', background: '#061425', display: 'grid' }}>
-        <EnergyFlowCanvas telemetry={data} online={online} />
+        <TestEnergyFlowCanvas telemetry={data} online={online} />
       </div>
     )
   )
@@ -166,7 +181,7 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
   await render()
   const initial = texts()
   for (const value of [
-    '6.00 kW',
+    '-6.00 kW',
     '满载 1.00 kW',
     '3.00 kW',
     '5.00 kW',
@@ -196,7 +211,7 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
     powers: {
       ...snapshot.powers!,
       photovoltaicPower: 65535,
-      storageRatedPower: 65535,
+      storagePower: 32767,
       primaryLoadPower: 0,
       secondaryLoadPower: 65535,
       totalLoadPower: 18
@@ -210,14 +225,14 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
   check(texts().includes('0.00 kW'), 'Valid zero power must remain zero')
   check(
     texts().includes('65535.00 kW') &&
-      texts().includes('新能源供电 65535.52 kW') &&
+      texts().includes('新能源供电 98302.00 kW') &&
       texts().includes('负载总功率 18.00 kW'),
     'UInt upper boundary must not be signed or scaled'
   )
-  check(texts().includes('-0.52 kW'), 'V × A must convert to kW and retain the PLC sign')
+  check(texts().includes('32767.00 kW'), 'Storage must use MW112 directly, independent of V × A')
   check(
     texts().includes('满载 1.00 kW'),
-    'Storage rating must stay fixed at 1.00 kW despite PLC rated power updates'
+    'Storage rating must stay fixed at 1.00 kW despite PLC live power updates'
   )
   checkDirections('discharge', 'export')
   const changed: TelemetrySnapshot = {
@@ -225,6 +240,7 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
     powers: {
       ...snapshot.powers!,
       photovoltaicPower: 5,
+      storagePower: -1,
       primaryLoadPower: 1,
       secondaryLoadPower: 2,
       tertiaryLoadPower: 3,
@@ -240,7 +256,7 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
     '1.00 kW',
     '2.00 kW',
     '3.00 kW',
-    '1.00 kW',
+    '-1.00 kW',
     '新能源供电 4.00 kW',
     '负载总功率 6.00 kW'
   ])
@@ -248,22 +264,17 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
   checkDirections('charge', 'import')
   const discharging = {
     ...changed,
-    devices: changed.devices.map((device) =>
-      device.kind === 'battery' ? { ...device, current: -10 } : device
-    )
+    powers: { ...changed.powers!, storagePower: 1 }
   }
   await render(discharging)
   check(
     texts().includes('新能源供电 6.00 kW'),
-    'Negative storage power must add discharged power to renewable supply'
+    'Positive storage power must add discharged power to renewable supply'
   )
   checkDirections('discharge', 'idle')
   await render({
     ...changed,
-    powers: { ...changed.powers!, totalLoadPower: 5 },
-    devices: changed.devices.map((device) =>
-      device.kind === 'battery' ? { ...device, current: 0 } : device
-    )
+    powers: { ...changed.powers!, storagePower: 0, totalLoadPower: 5 }
   })
   check(texts().includes('0.00 kW'), 'Idle storage must display a valid zero')
   checkDirections('idle', 'idle')
@@ -274,7 +285,18 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
         device.kind === 'battery' ? { ...device, ...batteryPatch } : device
       )
     })
-    check(texts().includes('新能源供电 — kW'), 'Unknown storage must not be treated as zero supply')
+    check(
+      texts().includes('新能源供电 4.00 kW'),
+      'MW112 must not depend on battery V/A availability'
+    )
+    checkDirections('charge', 'import')
+  }
+  await render({ ...changed, devices: [] })
+  check(texts().includes('-1.00 kW'), 'Storage must remain available without V/A devices')
+  checkDirections('charge', 'import')
+  for (const storagePower of [NaN, Infinity]) {
+    await render({ ...changed, powers: { ...changed.powers!, storagePower } })
+    check(texts().includes('新能源供电 — kW'), 'Invalid MW112 must not be treated as zero supply')
     checkDirections('idle', 'idle')
   }
   await render({ ...updated, plcConnected: false })
@@ -323,7 +345,7 @@ async function runEnergyPowerSmoke(): Promise<string[]> {
     'PASS: traditional fixed fractional powers remain available without telemetry; offline direct mode hides example values',
     'PASS: all device powers and totals render in kW',
     'PASS: telemetry updates, zero, UInt maximum, negative storage, device ordering',
-    'PASS: positive PLC storage charges, negative discharges; storage/grid directions are mutually exclusive; zero and missing data do not animate',
+    'PASS: negative MW112 charges, positive discharges; storage/grid directions are mutually exclusive; zero and missing data do not animate',
     'PASS: live PV and load readings, signed renewable supply calculation, fixed 1.00 kW rating and hidden PV string powers',
     'PASS: PLC/service disconnect and missing readings hide stale values',
     'PASS: maximum power labels fit at 130% font size'

@@ -19,15 +19,15 @@ export function getEnergyPowerReadings(
     const power = calculatePowerKW(device.voltage, device.current)
     return Number.isFinite(power) ? power : undefined
   }
-  const storage = calculatedPower(
-    telemetry?.devices.find((device) => device.kind === 'battery')?.id ?? 'battery-1'
-  )
+  const storagePower = available ? telemetry?.powers?.storagePower : undefined
+  const storage =
+    storagePower !== undefined && Number.isFinite(storagePower) ? storagePower : undefined
   const photovoltaicPower = available ? telemetry?.powers?.photovoltaicPower : undefined
-  // PLC storage power is positive while charging and negative while discharging.
-  // Keep that sign on the storage card; subtract it to get net renewable supply.
+  // MW112 is negative while charging and positive while discharging.
+  // Add the signed reading to PV power to get net renewable supply.
   const supply =
     photovoltaicPower !== undefined && Number.isFinite(photovoltaicPower) && storage !== undefined
-      ? photovoltaicPower - storage
+      ? photovoltaicPower + storage
       : undefined
   return {
     photovoltaic: [1, 2, 3, 4].map((index) => calculatedPower(`pv-${index}`)),

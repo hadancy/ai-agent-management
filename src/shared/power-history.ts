@@ -1,5 +1,4 @@
 import type { TelemetrySnapshot } from './contracts'
-import { calculatePowerKW } from './power-units'
 
 export const POWER_HISTORY_INTERVAL_MS = 60_000
 export const POWER_HISTORY_DAY_MS = 24 * 60 * POWER_HISTORY_INTERVAL_MS
@@ -23,18 +22,14 @@ function finite(value: number | undefined): number | null {
 
 export function createPowerHistoryPoint(snapshot: TelemetrySnapshot): PowerHistoryPoint {
   const online = snapshot.plcConnected === true
-  const battery = snapshot.devices.find((device) => device.kind === 'battery')
   const photovoltaic = online ? finite(snapshot.powers?.photovoltaicPower) : null
-  const storage =
-    online && battery && battery.status !== 'offline'
-      ? finite(calculatePowerKW(battery.voltage, battery.current))
-      : null
+  const storage = online ? finite(snapshot.powers?.storagePower) : null
   return {
     timestamp: snapshot.timestamp,
     photovoltaic,
     storage,
-    // Positive PLC storage current is charging; negative current supplies the bus.
-    supply: photovoltaic !== null && storage !== null ? photovoltaic - storage : null,
+    // MW112 is negative while charging and positive while supplying the bus.
+    supply: photovoltaic !== null && storage !== null ? photovoltaic + storage : null,
     load: online ? finite(snapshot.powers?.totalLoadPower) : null
   }
 }

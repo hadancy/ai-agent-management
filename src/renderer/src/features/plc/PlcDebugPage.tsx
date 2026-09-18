@@ -427,6 +427,13 @@ export default function PlcDebugPage(): React.JSX.Element {
               {PLC_POINTS.map((point, index) => {
                 const result = results.find((item) => item.id === point.id)
                 const register = point.register + connection.registerAddressOffset
+                const min = point.type === 'INT' ? -32768 : point.type === 'REAL' ? undefined : 0
+                const max =
+                  point.type === 'INT'
+                    ? 32767
+                    : point.type === 'REAL'
+                      ? undefined
+                      : 65535 / point.scale
                 return (
                   <tr key={point.id} className={index % 2 === 0 ? 'plc-group-start' : ''}>
                     <td>
@@ -451,7 +458,9 @@ export default function PlcDebugPage(): React.JSX.Element {
                           ? `WORD · 16 位无符号 · ÷${point.scale}`
                           : point.type === 'UINT'
                             ? 'UInt · 16 位无符号 · 整数 kW'
-                            : 'REAL · 32 位浮点'}
+                            : point.type === 'INT'
+                              ? 'Int · 16 位有符号 · 整数 kW'
+                              : 'REAL · 32 位浮点'}
                       </span>
                     </td>
                     <td>
@@ -469,18 +478,18 @@ export default function PlcDebugPage(): React.JSX.Element {
                         <input
                           type="number"
                           step={point.type !== 'REAL' ? 1 / point.scale : 'any'}
-                          min={point.type !== 'REAL' ? 0 : undefined}
-                          max={point.type !== 'REAL' ? 65535 / point.scale : undefined}
+                          min={min}
+                          max={max}
                           aria-label={`${point.label}待写入值`}
-                          placeholder={
-                            point.type !== 'REAL' ? `0–${65535 / point.scale}` : '输入数值'
-                          }
+                          placeholder={point.type !== 'REAL' ? `${min}–${max}` : '输入数值'}
                           title={
                             point.type === 'WORD'
                               ? `输入换算后的数值（0–${65535 / point.scale}，最多${Math.log10(point.scale)}位小数），写入时自动乘以${point.scale}`
                               : point.type === 'UINT'
                                 ? '输入整数功率（0–65535 kW），直接写入原始值'
-                                : '输入32位浮点数'
+                                : point.type === 'INT'
+                                  ? '输入整数功率（-32768–32767 kW），负数充电，正数放电'
+                                  : '输入32位浮点数'
                           }
                           disabled={Boolean(busy) || !snapshot}
                           value={draft[point.id] ?? ''}

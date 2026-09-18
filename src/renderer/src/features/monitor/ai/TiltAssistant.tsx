@@ -19,7 +19,8 @@ import {
   dispatchWorkOrder,
   getWorkOrder,
   type CreateWorkOrderDraftInput,
-  type WorkOrder
+  type WorkOrder,
+  type WorkOrderTarget
 } from '../workorder/api'
 import { usePlatformSpeech } from '../../../speech/usePlatformSpeech'
 import type { VoiceStatus } from '../../../speech/PlatformSpeechPlayer'
@@ -76,7 +77,7 @@ function loadConversation(): Conversation[] {
 }
 function speechText(item: Conversation): string {
   if (item.round === 'overview') return OVERVIEW_CONCLUSION
-  if (item.round === 'seasonal') return seasonalSpeechText(item.plan.analysisDate!)
+  if (item.round === 'seasonal') return seasonalSpeechText()
   return getTiltReply(item.plan.month)
 }
 
@@ -98,7 +99,7 @@ export default function TiltAssistant({
   refreshToken: number
   active: boolean
   onWorkOrderChanged: () => void
-  onViewWorkOrder: () => void
+  onViewWorkOrder: (target?: WorkOrderTarget) => void
 }): React.JSX.Element {
   const [conversations, setConversations] = useState<Conversation[]>(loadConversation)
   const [busy, setBusy] = useState<string | null>(null)
@@ -512,7 +513,7 @@ export default function TiltAssistant({
                             <button
                               type="button"
                               className="diagnosis-voice"
-                              onClick={onViewWorkOrder}
+                              onClick={() => onViewWorkOrder(order)}
                             >
                               查看工单
                             </button>

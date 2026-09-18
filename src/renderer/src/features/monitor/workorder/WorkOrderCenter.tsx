@@ -21,7 +21,8 @@ import {
   type WorkOrderRole,
   type WorkOrderStatus,
   type WorkOrderTask,
-  type WorkOrderTaskStatus
+  type WorkOrderTaskStatus,
+  type WorkOrderTarget
 } from './api'
 import DeleteWorkOrderDialog from './DeleteWorkOrderDialog'
 import '../styles/work-order-center.css'
@@ -398,6 +399,7 @@ export default function WorkOrderCenter({
   serviceOrigin,
   padUrl,
   refreshToken,
+  initialWorkOrder,
   onBack,
   onOpenAssistant,
   onCountChange
@@ -405,6 +407,7 @@ export default function WorkOrderCenter({
   serviceOrigin: string
   padUrl?: string
   refreshToken: number
+  initialWorkOrder?: WorkOrderTarget
   onBack: () => void
   onOpenAssistant: () => void
   onCountChange?: (count: number) => void
@@ -428,6 +431,8 @@ export default function WorkOrderCenter({
   const dispatchingRef = useRef(false)
   const deletingRef = useRef(false)
   const selectedIdRef = useRef<string | null>(null)
+  const pendingTargetRef = useRef(initialWorkOrder)
+  const selectedCardRef = useRef<HTMLButtonElement>(null)
   const sortedOrders = useMemo(() => [...orders].sort(compareWorkOrders), [orders])
 
   const counts = useMemo(
@@ -462,13 +467,46 @@ export default function WorkOrderCenter({
         if (!active) return
         setOrders(response.items)
         setTotal(response.total)
-        setError(null)
         onCountChange?.(response.items.filter((order) => order.status !== 'closed').length)
-        const selectedStillExists = response.items.find(
-          (order) => order.id === selectedIdRef.current
-        )
-        const nextSelected =
-          selectedStillExists ?? [...response.items].sort(compareWorkOrders)[0] ?? null
+        const target = pendingTargetRef.current
+        let nextSelected: WorkOrder | null
+        if (target) {
+          nextSelected =
+            response.items.find((order) =>
+              target.id ? order.id === target.id : order.orderNumber === target.orderNumber
+            ) ?? null
+          if (!nextSelected && target.id) {
+            nextSelected = await getWorkOrder(serviceOrigin, target.id, controller.signal)
+          } else if (!nextSelected) {
+            // Older diagnosis conversations only saved the order number.
+            let offset = response.items.length
+            while (!nextSelected && offset < response.total) {
+              const page = await listWorkOrders(serviceOrigin, controller.signal, offset)
+              if (!active) return
+              nextSelected =
+                page.items.find((order) => order.orderNumber === target.orderNumber) ?? null
+              if (page.items.length === 0) break
+              offset += page.items.length
+            }
+          }
+          if (!nextSelected) throw new Error(`未找到工单 ${target.orderNumber}，可能已被删除`)
+        } else {
+          nextSelected = response.items.find((order) => order.id === selectedIdRef.current) ?? null
+          if (!nextSelected && selectedIdRef.current) {
+            nextSelected = await getWorkOrder(
+              serviceOrigin,
+              selectedIdRef.current,
+              controller.signal
+            )
+          }
+          nextSelected ??= [...response.items].sort(compareWorkOrders)[0] ?? null
+        }
+        if (!active) return
+        if (nextSelected && !response.items.some((order) => order.id === nextSelected.id)) {
+          setOrders([...response.items, nextSelected])
+        }
+        pendingTargetRef.current = undefined
+        setError(null)
         selectedIdRef.current = nextSelected?.id ?? null
         setSelectedId(nextSelected?.id ?? null)
         setSelected(nextSelected)
@@ -490,6 +528,10 @@ export default function WorkOrderCenter({
       controller.abort()
     }
   }, [onCountChange, refreshCounter, refreshToken, serviceOrigin])
+
+  useEffect(() => {
+    selectedCardRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [loading, selectedId])
 
   useEffect(() => {
     if (!selectedId) return
@@ -524,6 +566,7 @@ export default function WorkOrderCenter({
   }, [refreshCounter, refreshToken, selectedId, serviceOrigin])
 
   const selectOrder = (order: WorkOrder): void => {
+    pendingTargetRef.current = undefined
     selectedIdRef.current = order.id
     setSelectedId(order.id)
     setSelected(order)
@@ -695,6 +738,7 @@ export default function WorkOrderCenter({
                         <button
                           type="button"
                           key={order.id}
+                          ref={order.id === selectedId ? selectedCardRef : undefined}
                           className={`work-order-card${order.id === selectedId ? ' work-order-card--active' : ''}`}
                           aria-pressed={order.id === selectedId}
                           onClick={() => selectOrder(order)}

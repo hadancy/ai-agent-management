@@ -170,13 +170,8 @@ export function seasonalConclusion(date: string, created: boolean): string {
   const { season } = seasonalStrategy(date)
   return `现在是${Number(date.slice(5, 7))}月${Number(date.slice(8))}日，执行${season}倾角，${created ? '工单已生成。' : '正在生成工单…'}`
 }
-export function seasonalSpeechText(date: string): string {
-  const { season } = seasonalStrategy(date)
-  return [
-    SEASONAL_RESULT[0],
-    SEASONAL_RESULT.find((line) => line.startsWith(`${season}：`))!,
-    seasonalConclusion(date, true)
-  ].join('\n')
+export function seasonalSpeechText(): string {
+  return '工单已生成，请查收'
 }
 export function seasonalWorkOrderFields(plan: TiltAdjustmentPlan): Array<[string, string]> {
   const date = plan.analysisDate!

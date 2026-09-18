@@ -25,10 +25,10 @@ async function run(): Promise<void> {
   pvRawValues.forEach((value, index) => memory.writeUInt16BE(value, 400 + index * 2))
   memory.writeFloatBE(52, 500)
   memory.writeFloatBE(-5, 504)
-  // Literal byte addresses from PLCTags.xlsx; UInt values are integer kW.
+  // Literal byte addresses; MW112 uses signed integer kW (-6 is raw 0xfffa).
   const powerFixture = [
     [110, 12],
-    [112, 6],
+    [112, 0xfffa],
     [114, 0],
     [116, 32768],
     [118, 65535],
@@ -38,7 +38,7 @@ async function run(): Promise<void> {
   powerFixture.forEach(([address, value]) => memory.writeUInt16BE(value, address))
   const expectedPowers = {
     photovoltaicPower: 12,
-    storageRatedPower: 6,
+    storagePower: -6,
     primaryLoadPower: 0,
     secondaryLoadPower: 32768,
     tertiaryLoadPower: 65535,
@@ -287,7 +287,8 @@ async function run(): Promise<void> {
     const expectedMemory = Buffer.from(beforePowers)
     for (const point of PLC_POWER_POINTS) {
       const value = powerValues[point.id]
-      expectedMemory.writeUInt16BE(value, point.register * 2)
+      if (point.type === 'INT') expectedMemory.writeInt16BE(value, point.register * 2)
+      else expectedMemory.writeUInt16BE(value, point.register * 2)
       assert.equal(powerWritten.snapshot?.values[point.id], value)
     }
     assert.deepEqual(memory, expectedMemory, 'Power writes must preserve every other byte')
@@ -298,8 +299,28 @@ async function run(): Promise<void> {
     assert.equal(memory.readUInt16BE(220), 65535)
     assert.equal(powerOffset.snapshot?.values.totalLoadPower, 65535)
     console.log(
-      'PASS: all seven UInt power addresses, integer kW, unsigned bounds, offsets and untouched bytes'
+      'PASS: all seven power addresses, integer kW, signed storage, unsigned loads, offsets and untouched bytes'
     )
+
+    for (const [value, raw] of [
+      [-32768, 0x8000],
+      [-1, 0xffff],
+      [0, 0],
+      [1, 1],
+      [32767, 0x7fff]
+    ]) {
+      const beforeStorage = Buffer.from(memory)
+      const response = (
+        await post('write', { connection, values: { storagePower: value } })
+      ).json<PlcWriteResponse>()
+      assert.equal(response.ok, true)
+      assert.equal(response.results[0].actual, value)
+      assert.equal(response.snapshot?.values.storagePower, value)
+      assert.equal(memory.readUInt16BE(112), raw)
+      assert.deepEqual(memory.subarray(0, 112), beforeStorage.subarray(0, 112))
+      assert.deepEqual(memory.subarray(114), beforeStorage.subarray(114))
+    }
+    console.log('PASS: MW112 signed 16-bit boundaries, charging/discharging, zero and readback')
 
     const beforeInvalid = requests
     for (const payload of [
@@ -313,7 +334,9 @@ async function run(): Promise<void> {
       { connection, values: { batteryVoltage: 1e40 } },
       { connection, values: { photovoltaicPower: 1.5 } },
       { connection, values: { photovoltaicPower: 1.000000001 } },
-      { connection, values: { storageRatedPower: -1 } },
+      { connection, values: { storagePower: -32769 } },
+      { connection, values: { storagePower: 32768 } },
+      { connection, values: { storagePower: -1.5 } },
       { connection, values: { primaryLoadPower: 65536 } },
       { connection, values: { pv1Voltage: 10, pv4Current: -1 } },
       { connection, values: {} },

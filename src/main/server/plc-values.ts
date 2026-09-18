@@ -6,15 +6,18 @@ import {
 } from '../../shared/plc'
 
 export function decodePlcPoint(point: PlcPoint, data: Buffer, offset = 0): number {
-  return point.type === 'REAL' ? data.readFloatBE(offset) : data.readUInt16BE(offset) / point.scale
+  if (point.type === 'REAL') return data.readFloatBE(offset)
+  if (point.type === 'INT') return data.readInt16BE(offset)
+  return data.readUInt16BE(offset) / point.scale
 }
 
 export function encodePlcPoint(point: PlcPoint, value: number): Buffer {
   const error = validatePlcPointValue(point, value)
   if (error) throw new Error(error)
   const data = Buffer.alloc(point.type === 'REAL' ? 4 : 2)
-  if (point.type !== 'REAL') data.writeUInt16BE(Math.round(value * point.scale))
-  else data.writeFloatBE(value)
+  if (point.type === 'REAL') data.writeFloatBE(value)
+  else if (point.type === 'INT') data.writeInt16BE(value)
+  else data.writeUInt16BE(Math.round(value * point.scale))
   return data
 }
 

@@ -233,7 +233,7 @@ export default function PowerTrendChart({
         />
         {!loading && !hasData && <div className="power-chart-empty">今日暂无功率数据</div>}
       </div>
-      {/* <div className="power-chart-note">储能：充电为正，放电为负 · 未采集时段留空</div> */}
+      {/* <div className="power-chart-note">储能：充电为负，放电为正 · 未采集时段留空</div> */}
     </section>
   )
 

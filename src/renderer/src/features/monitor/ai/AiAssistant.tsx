@@ -4,6 +4,7 @@ import { usePlatformSpeech } from '../../../speech/usePlatformSpeech'
 import type { VoiceStatus } from '../../../speech/PlatformSpeechPlayer'
 import { DIAGNOSIS_SPEECH_TEXT } from '../../../../../shared/recorded-speech'
 import ClearChatDialog from './ClearChatDialog'
+import type { WorkOrderTarget } from '../workorder/api'
 import '../styles/ai-assistant.css'
 
 type ChatMessage = {
@@ -14,12 +15,17 @@ type ChatMessage = {
   diagnosis?: boolean
   thinking?: boolean
   draftStatus?: 'creating' | 'created' | 'error'
+  workOrderId?: string
   orderNumber?: string
   draftDeduplicated?: boolean
   draftError?: string
 }
 
-type WorkOrderDraftFeedback = { orderNumber: string; deduplicated: boolean }
+type WorkOrderDraftFeedback = {
+  workOrderId: string
+  orderNumber: string
+  deduplicated: boolean
+}
 
 const CHAT_STORAGE_KEY = 'ai-assistant-chat-messages-v2'
 const DIAGNOSIS_CONTENT = [
@@ -103,7 +109,7 @@ export default function AiAssistant({
 }: {
   active?: boolean
   onWorkOrderCreated: () => Promise<WorkOrderDraftFeedback>
-  onViewWorkOrder: () => void
+  onViewWorkOrder: (target?: WorkOrderTarget) => void
 }): React.JSX.Element {
   const [input, setInput] = useState('')
   const {
@@ -184,7 +190,13 @@ export default function AiAssistant({
       setMessages((current) =>
         current.map((message) =>
           message.id === messageId
-            ? { ...message, draftStatus: 'creating', orderNumber: undefined, draftError: undefined }
+            ? {
+                ...message,
+                draftStatus: 'creating',
+                workOrderId: undefined,
+                orderNumber: undefined,
+                draftError: undefined
+              }
             : message
         )
       )
@@ -197,6 +209,7 @@ export default function AiAssistant({
               ? {
                   ...message,
                   draftStatus: 'created',
+                  workOrderId: feedback.workOrderId,
                   orderNumber: feedback.orderNumber,
                   draftDeduplicated: feedback.deduplicated,
                   draftError: undefined
@@ -385,7 +398,7 @@ export default function AiAssistant({
                 <span>了解故障位置、原因及建议</span>
                 <AssistantIcon name="arrow" />
               </button>
-              <button type="button" onClick={onViewWorkOrder}>
+              <button type="button" onClick={() => onViewWorkOrder()}>
                 <span className="ai-capability-icon ai-capability-icon--order">
                   <AssistantIcon name="clipboard" />
                 </span>
@@ -516,8 +529,13 @@ export default function AiAssistant({
                             <button
                               type="button"
                               className="diagnosis-primary"
-                              onClick={onViewWorkOrder}
-                              disabled={message.draftStatus !== 'created'}
+                              onClick={() =>
+                                onViewWorkOrder({
+                                  id: message.workOrderId,
+                                  orderNumber: message.orderNumber!
+                                })
+                              }
+                              disabled={message.draftStatus !== 'created' || !message.orderNumber}
                             >
                               {message.draftStatus === 'created' ? '查看工单' : '生成中…'}
                               <AssistantIcon name="arrow" />

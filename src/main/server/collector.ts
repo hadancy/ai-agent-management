@@ -271,7 +271,7 @@ export class SimulatedCollector implements DataCollector {
         plcClock: createSimulatedPlcClock(this.sequence, this.intervalMs),
         powers: {
           photovoltaicPower: 17,
-          storageRatedPower: 6,
+          storagePower: 6,
           primaryLoadPower: 3,
           secondaryLoadPower: 5,
           tertiaryLoadPower: 4,

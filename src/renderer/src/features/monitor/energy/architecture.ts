@@ -7,7 +7,7 @@ export const STORAGE_RATED_POWER_KW = 1
 // The traditional diagram is a fixed comparison example, independent of PLC readings.
 export const TRADITIONAL_POWERS: Readonly<PlcPowerValues> = {
   photovoltaicPower: 5,
-  storageRatedPower: STORAGE_RATED_POWER_KW,
+  storagePower: STORAGE_RATED_POWER_KW,
   primaryLoadPower: 0.5,
   secondaryLoadPower: 1.5,
   tertiaryLoadPower: 3,

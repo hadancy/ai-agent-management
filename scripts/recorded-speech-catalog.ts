@@ -1,5 +1,9 @@
 import { getTiltReply } from '../src/shared/tilt-adjustment'
-import { OVERVIEW_CONCLUSION, SEASONAL_RESULT } from '../src/shared/agrivoltaic-analysis'
+import {
+  OVERVIEW_CONCLUSION,
+  SEASONAL_RESULT,
+  seasonalSpeechText
+} from '../src/shared/agrivoltaic-analysis'
 import { ENERGY_ARCHITECTURES } from '../src/renderer/src/features/monitor/energy/architecture'
 import { DIAGNOSIS_SPEECH_TEXT, RECORDED_TEST_TEXT } from '../src/shared/recorded-speech'
 export * from '../src/shared/recorded-speech'
@@ -8,6 +12,7 @@ export const fullRecordings = [
   DIAGNOSIS_SPEECH_TEXT,
   RECORDED_TEST_TEXT,
   OVERVIEW_CONCLUSION,
+  seasonalSpeechText(),
   SEASONAL_RESULT.join('\n'),
   ...SEASONAL_RESULT,
   ...Array.from({ length: 12 }, (_, index) => getTiltReply(index + 1)),

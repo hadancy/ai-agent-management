@@ -868,11 +868,15 @@ function BusLabel({
 }
 
 export default function EnergyFlowCanvas({
+  architecture,
+  onArchitectureChange,
   routeStates,
   photovoltaicStates,
   telemetry,
   online = true
 }: {
+  architecture: EnergyArchitecture
+  onArchitectureChange: (architecture: EnergyArchitecture) => void
   routeStates?: Partial<EnergyRouteStates>
   photovoltaicStates?: EnergyRouteState[]
   telemetry?: TelemetrySnapshot
@@ -881,7 +885,6 @@ export default function EnergyFlowCanvas({
   const containerRef = useRef<HTMLDivElement>(null)
   const wireLayerRef = useRef<Konva.Layer>(null)
   const deviceLayerRef = useRef<Konva.Layer>(null)
-  const [architecture, setArchitecture] = useState<EnergyArchitecture>('traditional')
   const [upgrading, setUpgrading] = useState(false)
   const [efficiencyVisible, setEfficiencyVisible] = useState(false)
   const upgradeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -913,7 +916,7 @@ export default function EnergyFlowCanvas({
   const readings = traditional
     ? {
         powers: TRADITIONAL_POWERS,
-        storage: TRADITIONAL_POWERS.storageRatedPower,
+        storage: TRADITIONAL_POWERS.storagePower,
         photovoltaic: []
       }
     : getEnergyPowerReadings(telemetry, online)
@@ -940,11 +943,11 @@ export default function EnergyFlowCanvas({
     power !== undefined && Number.isFinite(power) && (forward ? power > 0 : power < 0)
       ? state
       : 'disconnected'
-  // The PLC convention is positive for charging and negative for discharging.
-  const storageDischargeState = directionalState(readings.storage, false, states.storage)
+  // MW112 is negative for charging and positive for discharging.
+  const storageDischargeState = directionalState(readings.storage, true, states.storage)
   const storageChargeState = traditional
     ? states.storage
-    : directionalState(readings.storage, true, states.storage)
+    : directionalState(readings.storage, false, states.storage)
   // No grid direction register is supplied. Infer the net exchange from live power balance.
   // Keep calculation precision for flow direction; display rounding must not change the balance.
   const gridPower =
@@ -1006,7 +1009,7 @@ export default function EnergyFlowCanvas({
     setUpgrading(true)
     upgradeTimer.current = setTimeout(() => {
       upgradeTimer.current = null
-      setArchitecture(nextArchitecture)
+      onArchitectureChange(nextArchitecture)
       setUpgrading(false)
     }, ARCHITECTURE_UPGRADE_MS)
   }
@@ -1427,7 +1430,7 @@ export default function EnergyFlowCanvas({
           <i aria-hidden="true" />
           {traditional
             ? '传统交流模式功率为固定示例值'
-            : '新能源供电：光伏 + 储能放电 − 储能充电 · 正值充电，负值放电'}
+            : '新能源供电：光伏 + 储能放电 − 储能充电 · 负值充电，正值放电'}
         </span>
         <div className="energy-footer__actions">
           <button

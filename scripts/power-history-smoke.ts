@@ -20,17 +20,24 @@ async function run(): Promise<void> {
   const app = Fastify()
   const start = Date.parse('2026-09-16T16:00:00Z')
   const end = start + POWER_HISTORY_DAY_MS
-  const sample = (seconds: number, current = -100): TelemetrySnapshot => ({
+  const sample = (seconds: number, storagePower = 5): TelemetrySnapshot => ({
     sequence: seconds,
     timestamp: new Date(start + seconds * 1000).toISOString(),
     collectorMode: 'plc-tcp',
     plcConnected: true,
     devices: [
-      { id: 'battery-1', name: '储能', kind: 'battery', voltage: 50, current, status: 'normal' }
+      {
+        id: 'battery-1',
+        name: '储能',
+        kind: 'battery',
+        voltage: 50,
+        current: -100,
+        status: 'normal'
+      }
     ],
     powers: {
       photovoltaicPower: 12,
-      storageRatedPower: 99,
+      storagePower,
       totalLoadPower: 10,
       renewableSupplyPower: 111,
       primaryLoadPower: 3,
@@ -42,16 +49,27 @@ async function run(): Promise<void> {
     assert.equal(getPowerDayStart(Date.parse('2026-09-17T15:59:59Z')), start)
     assert.equal(getPowerDayStart(Date.parse('2026-09-17T16:00:00Z')), end)
     const discharging = createPowerHistoryPoint(sample(10))
-    assert.equal(discharging.storage, -5, 'Storage uses V × A / 1,000, not the 99 kW rating')
-    assert.equal(discharging.supply, 17, 'Negative PLC storage power increases total supply')
-    const charging = createPowerHistoryPoint(sample(20, 20))
-    assert.equal(charging.storage, 1)
+    assert.equal(discharging.storage, 5, 'Storage reads MW112 directly, independent of V × A')
+    assert.equal(discharging.supply, 17, 'Positive PLC storage power increases total supply')
+    const charging = createPowerHistoryPoint(sample(20, -1))
+    assert.equal(charging.storage, -1)
     assert.equal(charging.supply, 11)
     assert.equal(createPowerHistoryPoint(sample(30, 0)).storage, 0)
-    const missing = createPowerHistoryPoint({ ...sample(40), powers: undefined, devices: [] })
+    const missing = createPowerHistoryPoint({ ...sample(40), powers: undefined })
     assert.equal(missing.storage, null)
     assert.equal(missing.supply, null)
     assert.equal(missing.load, null)
+    assert.equal(createPowerHistoryPoint({ ...sample(40), devices: [] }).storage, 5)
+    for (const value of [NaN, Infinity]) {
+      const invalid = createPowerHistoryPoint(sample(40, value))
+      assert.equal(invalid.storage, null)
+      assert.equal(invalid.supply, null)
+    }
+    const legacy = sample(40)
+    Reflect.deleteProperty(legacy.powers!, 'storagePower')
+    Object.assign(legacy.powers!, { storageRatedPower: 99 })
+    assert.equal(createPowerHistoryPoint(legacy).storage, null, 'Legacy ratings are not live power')
+    assert.equal(createPowerHistoryPoint(legacy).supply, null)
     const offline = { ...sample(120), plcConnected: false }
     assert.equal(createPowerHistoryPoint(offline).photovoltaic, null)
     assert.equal(createPowerHistoryPoint(offline).storage, null)
@@ -88,7 +106,7 @@ async function run(): Promise<void> {
       'PASS: persisted history survives restart, uses latest minute sample, excludes other days'
     )
 
-    const live = createPowerHistoryPoint(sample(55, 120))
+    const live = createPowerHistoryPoint(sample(55, 6))
     const merged = mergePowerHistory([live], history, start, end)
     assert.equal(
       merged[0].storage,

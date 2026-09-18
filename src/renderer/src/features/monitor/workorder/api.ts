@@ -89,6 +89,11 @@ export type CreateWorkOrderDraftResult = {
   deduplicated: boolean
 }
 
+export type WorkOrderTarget = {
+  id?: string
+  orderNumber: string
+}
+
 type WorkOrderListResponse = {
   items: WorkOrder[]
   total: number
@@ -126,9 +131,12 @@ async function readJson<T>(response: Response): Promise<T> {
 
 export async function listWorkOrders(
   serviceOrigin: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  offset = 0
 ): Promise<WorkOrderListResponse> {
-  const response = await fetch(`${serviceOrigin}/api/work-orders?limit=100&offset=0`, { signal })
+  const response = await fetch(`${serviceOrigin}/api/work-orders?limit=100&offset=${offset}`, {
+    signal
+  })
   return readJson<WorkOrderListResponse>(response)
 }
 

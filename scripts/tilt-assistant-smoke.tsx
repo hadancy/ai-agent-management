@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { flushSync } from 'react-dom'
 import AiAssistantPage from '../src/renderer/src/features/monitor/ai/AiAssistantPage'
+import ConsoleApp from '../src/renderer/src/features/monitor/ConsoleApp'
 import MonitorHeader from '../src/renderer/src/features/monitor/components/MonitorHeader'
 import PadTaskCard from '../src/renderer/src/features/pad/PadTaskCard'
 import WorkOrderCenter from '../src/renderer/src/features/monitor/workorder/WorkOrderCenter'
@@ -151,6 +152,7 @@ async function runTiltAssistantSmoke(): Promise<string[]> {
               refreshToken={0}
               onWorkOrderChanged={() => {}}
               onWorkOrderCreated={async () => ({
+                workOrderId: 'existing-diagnosis-id',
                 orderNumber: 'existing-diagnosis',
                 deduplicated: false
               })}
@@ -303,9 +305,8 @@ async function runTiltAssistantSmoke(): Promise<string[]> {
   check((await orders()).length === 1, '重试不能重复创建')
   await until(() => Number(spoken.length) === 2, '第二轮成功后自动播报')
   check(
-    spoken[1] ===
-      '基准倾角为21–23°\n秋季：回归基准，平衡发电与秋茶品质。\n现在是9月23日，执行秋季倾角，工单已生成。',
-    '播报只包含基准倾角、当前季节策略和实际日期结论'
+    spoken[1] === '工单已生成，请查收',
+    '第二轮成功后只播报工单生成提示'
   )
   check(
     panel().querySelector('.tilt-seasonal-results')!.querySelectorAll('p').length === 4,
@@ -348,7 +349,7 @@ async function runTiltAssistantSmoke(): Promise<string[]> {
   check(Number(spoken.length) === 2, '历史记录不能自动重播')
   panel().querySelectorAll<HTMLButtonElement>('.diagnosis-voice')[1].click()
   await until(() => Number(spoken.length) === 3, '历史季节建议可手动重播')
-  check(spoken[2] === spoken[1], '跨季重播应保留原分析日期对应的秋季文段')
+  check(spoken[2] === spoken[1], '跨季重播仍只播报工单生成提示')
   typeRequest(ANALYSIS_PROMPTS.seasonal)
   await pause()
   button('发送').click()
@@ -372,9 +373,8 @@ async function runTiltAssistantSmoke(): Promise<string[]> {
   await until(() => text().includes('NG-GQ-20261223-001'), '冬季应按新日期创建工单')
   await until(() => Number(spoken.length) === 4, '冬季工单生成后应自动播报')
   check(
-    spoken[3] ===
-      '基准倾角为21–23°\n冬季：基准+12°，多发电、自动除雪、防霜冻。\n现在是12月23日，执行冬季倾角，工单已生成。',
-    '日期切换后仅播报冬季建议'
+    spoken[3] === '工单已生成，请查收',
+    '日期切换后仍只播报工单生成提示'
   )
   check(
     text().includes('34.00°（允许偏差 ±1.00°）') && text().includes('2026.12.23～2027.02.03'),
@@ -477,8 +477,114 @@ async function runTiltAssistantSmoke(): Promise<string[]> {
     document.querySelector('.work-order-meta')!.textContent!.includes('22.00°（允许偏差 ±1.00°）'),
     '工单中心目标角度正确'
   )
+
+  // Exercise the real console navigation with an older target outside the first list page.
+  const winterOrder = (await orders()).find((order) => order.id !== workOrder.id)!
+  localStorage.setItem('ai-assistant-selected', 'diagnosis')
+  localStorage.setItem(
+    'ai-assistant-chat-messages-v2',
+    JSON.stringify(
+      [workOrder, winterOrder, workOrder, { id: 'deleted-order', orderNumber: 'WO-DELETED' }].map(
+        (order, index) => ({
+          id: index + 1,
+          role: 'assistant',
+          content: '诊断完成',
+          diagnosis: true,
+          draftStatus: 'created',
+          workOrderId: index === 2 ? undefined : order.id,
+          orderNumber: order.orderNumber
+        })
+      )
+    )
+  )
+  localStorage.setItem(
+    'ai-tilt-assistant-chat-v1',
+    JSON.stringify([
+      { plan: workOrder.tiltAdjustment, round: 'seasonal', status: 'created', order: workOrder }
+    ])
+  )
+  class TestSocket extends EventTarget {
+    close(): void {
+      // This test does not connect to a real PLC socket.
+    }
+  }
+  Object.defineProperty(window, 'WebSocket', { value: TestSocket })
+  const navigationFetch = window.fetch
+  window.fetch = async (url, init) => {
+    const address = new URL(String(url))
+    if (address.pathname === '/api/system-info') return Response.json({})
+    if (address.pathname === '/api/telemetry/latest') return new Response(null, { status: 204 })
+    if (address.pathname === '/api/work-orders')
+      return Response.json({
+        items: address.searchParams.get('offset') === '1' ? [workOrder] : [winterOrder],
+        total: 2
+      })
+    return navigationFetch(url, init)
+  }
+  flushSync(() =>
+    root.render(
+      <StrictMode>
+        <ConsoleApp />
+      </StrictMode>
+    )
+  )
+  const assertSelected = async (order: WorkOrder): Promise<void> => {
+    await until(
+      () =>
+        document
+          .querySelector('.work-order-detail__heading')
+          ?.textContent?.includes(order.orderNumber) === true &&
+        document
+          .querySelector('.work-order-card--active')
+          ?.textContent?.includes(order.orderNumber) === true,
+      `应自动定位工单 ${order.orderNumber}`
+    )
+    const card = document.querySelector('.work-order-card--active')!.getBoundingClientRect()
+    const list = document.querySelector('.work-order-list__items')!.getBoundingClientRect()
+    check(card.top >= list.top - 1 && card.bottom <= list.bottom + 1, '目标工单应滚动至可见位置')
+  }
+  for (const [index, expected] of [workOrder, winterOrder, workOrder].entries()) {
+    button('智诊精巡').click()
+    await pause()
+    document.querySelectorAll<HTMLButtonElement>('.diagnosis-primary')[index].click()
+    await assertSelected(expected)
+    flushSync(() => button('刷新数据').click())
+    await until(
+      () => !document.querySelector('.work-order-page__heading')?.textContent?.includes('正在刷新'),
+      '刷新应完成'
+    )
+    await assertSelected(expected)
+  }
+  button('智诊精巡').click()
+  await pause()
+  button('智能数据分析系统资料上传 · 季节倾角').click()
+  await pause()
+  button('查看工单').click()
+  await assertSelected(workOrder)
+  ;[...document.querySelectorAll<HTMLButtonElement>('.work-order-card')]
+    .find((card) => card.textContent?.includes(winterOrder.orderNumber))!
+    .click()
+  await assertSelected(winterOrder)
+  flushSync(() => button('刷新数据').click())
+  await until(
+    () => !document.querySelector('.work-order-page__heading')?.textContent?.includes('正在刷新'),
+    '切换工单后刷新应完成'
+  )
+  await assertSelected(winterOrder)
+  button('智诊精巡').click()
+  await pause()
+  button('查看全部工单').click()
+  await assertSelected(winterOrder)
+  button('智诊精巡').click()
+  await pause()
+  button('高精度智能运维系统图片诊断 · 故障处置').click()
+  await pause()
+  document.querySelectorAll<HTMLButtonElement>('.diagnosis-primary')[3].click()
+  await until(() => document.querySelector('.work-order-alert') !== null, '工单已删除应提示错误')
+  check(!document.querySelector('.work-order-detail__heading'), '工单不存在时不可打开其他工单详情')
   root.unmount()
   return [
+    'PASS: AI 对话按工单 ID 定位、历史编号分页查找、刷新保持选中、倾角工单跳转、查看全部重置及已删除工单提示',
     'PASS: 两轮模拟语音、Word附件暂存、5秒等待、逐行分析和渐进表格、加粗结论、自动语音及恢复、日期/季节动态工单、重试去重、人工下发、C平台回填、历史恢复与底部布局'
   ]
 }

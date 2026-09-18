@@ -1,8 +1,10 @@
 import { StrictMode } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot } from 'react-dom/client'
+import type { TelemetrySnapshot } from '../src/shared/contracts'
 import RiskAlarmDialog from '../src/renderer/src/features/monitor/alerts/RiskAlarmDialog'
 import { detectDeviceRisk } from '../src/renderer/src/features/monitor/alerts/riskDetection'
+import { createForecastModel } from '../src/renderer/src/features/monitor/charts/forecastSimulation'
 import { DEFAULT_PHOTOVOLTAIC_SETTINGS } from '../src/renderer/src/features/monitor/settings/photovoltaicSettings'
 import type { DeviceRiskAlarm, ForecastRisk } from '../src/renderer/src/features/monitor/types'
 import '../src/renderer/src/assets/base.css'
@@ -46,6 +48,62 @@ async function runRiskAlarmSmoke(): Promise<string[]> {
     'Keep both sets of evidence'
   )
   reports.push('PASS: either rule triggers; normal data clears; same-device evidence is merged')
+
+  const batteryPrediction: ForecastRisk = {
+    ...prediction,
+    deviceId: 'battery',
+    deviceName: '蓄电池组'
+  }
+  const batteryOnly = detectDeviceRisk([normal], settings, batteryPrediction)
+  check(batteryOnly === null, 'Battery risk alone must not trigger a popup alarm')
+  const batteryHistory: TelemetrySnapshot[] = [
+    {
+      sequence: 1,
+      timestamp: '2026-09-18T12:00:00+08:00',
+      collectorMode: 'plc-tcp',
+      plcConnected: true,
+      devices: [
+        {
+          id: 'battery-1',
+          name: '蓄电池组',
+          kind: 'battery',
+          voltage: 20,
+          current: 1,
+          status: 'warning'
+        }
+      ]
+    }
+  ]
+  const batteryModel = createForecastModel(batteryHistory, settings)
+  check(batteryModel.activeRisk === null, 'Battery forecasts must not create popup risks')
+  const batteryForecast = batteryModel.forecasts.find((device) => device.id === 'battery')
+  check(
+    batteryForecast && batteryForecast.values[0] < 80,
+    'Battery risk data must remain available on the forecast chart'
+  )
+  const mixedModel = createForecastModel(
+    [613, 552].map((voltage, index) => ({
+      ...batteryHistory[0],
+      sequence: index + 1,
+      devices: [
+        ...batteryHistory[0].devices,
+        {
+          id: 'pv-2',
+          name: '2号光伏组串',
+          kind: 'pv-string',
+          voltage,
+          current: 9.4,
+          status: 'normal'
+        }
+      ]
+    })),
+    settings
+  )
+  check(
+    mixedModel.activeRisk?.deviceId === 'pv2',
+    'An earlier battery risk must not hide a later photovoltaic prediction'
+  )
+  reports.push('PASS: battery risks are excluded; chart data and photovoltaic predictions remain')
 
   const spoken: string[] = []
   let canceled = 0
@@ -117,6 +175,11 @@ async function runRiskAlarmSmoke(): Promise<string[]> {
     button.click()
   }
 
+  render(batteryOnly)
+  await pause(400)
+  check(!document.querySelector('[role="alertdialog"]'), 'Battery-only risk must show no dialog')
+  check(Number(spoken.length) === 0, 'Battery-only risk must not announce an alarm')
+
   render(realtime)
   await pause(150)
   render(combined)
@@ -177,11 +240,13 @@ async function runRiskAlarmSmoke(): Promise<string[]> {
       name: `${index + 1}号光伏组串`
     })),
     settings,
-    { ...prediction, deviceId: 'battery', deviceName: '蓄电池组' }
+    batteryPrediction
   )
-  check(multiple?.devices.length === 5, 'Different devices must all remain visible in one alarm')
+  check(multiple?.devices.length === 4, 'All four photovoltaic devices must remain in one alarm')
+  check(!multiple.message.includes('蓄电池'), 'Battery must not appear in the alarm announcement')
   render(multiple)
   await pause(50)
+  check(!document.body.textContent?.includes('蓄电池'), 'Battery must not appear in the popup')
   const dialog = document.querySelector('[role="alertdialog"]')!.getBoundingClientRect()
   const details = document.querySelector('.forecast-alert__devices')!
   const footer = document.querySelector('.forecast-alert__actions')!.getBoundingClientRect()
