@@ -109,7 +109,7 @@
 }
 .assistant-switcher {
   display: flex;
-  flex: 0 1 520px;
+  flex: 0 1 800px;
   min-width: 0;
   gap: 8px;
 }

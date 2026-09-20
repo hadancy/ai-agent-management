@@ -13,6 +13,7 @@ import { DIAGNOSIS_SPEECH_TEXT, normalizeRecordedText } from '../src/shared/reco
 import { fullRecordings } from './recorded-speech-catalog'
 import { seasonalSpeechText } from '../src/shared/agrivoltaic-analysis'
 import { seasonalTaskVoice } from '../src/shared/task-evidence'
+import { XIAOGUANG_QA } from '../src/shared/xiaoguang-qa'
 
 function checkWav(data: Buffer): void {
   assert.equal(data.toString('ascii', 0, 4), 'RIFF')
@@ -49,6 +50,7 @@ async function run(): Promise<void> {
       assert.equal(parts.length, 1, `Fixed content must use one whole recording: ${text}`)
     }
     const sample = await service.synthesize(DIAGNOSIS_SPEECH_TEXT)
+    for (const item of XIAOGUANG_QA) checkWav((await service.synthesize(item.answer)).data)
     checkWav(sample.data)
     assert.equal(sample.provider, 'recorded')
     assert.equal(sample.voice, 'Tingting')

@@ -15,20 +15,26 @@ export default function TiltRequestComposer({
   active,
   busy,
   demoRequest,
-  attachment,
-  requireAttachment,
+  attachment = null,
+  requireAttachment = false,
   onRemoveAttachment,
   onUpload,
-  onSend
+  onSend,
+  inputId = 'tilt-request',
+  label = '你的需求',
+  placeholder = '请输入光伏组件倾角、高度等分析需求，或点击下方语音输入…'
 }: {
   active: boolean
   busy: boolean
   demoRequest: string
-  attachment: { name: string; size: number } | null
-  requireAttachment: boolean
-  onRemoveAttachment: () => void
-  onUpload: (event: React.ChangeEvent<HTMLInputElement>) => void
-  onSend: (request: string) => void
+  attachment?: { name: string; size: number } | null
+  requireAttachment?: boolean
+  onRemoveAttachment?: () => void
+  onUpload?: (event: React.ChangeEvent<HTMLInputElement>) => void
+  onSend: (request: string) => boolean | void
+  inputId?: string
+  label?: string
+  placeholder?: string
 }): React.JSX.Element {
   const [draft, setDraft] = useState('')
   const [recording, setRecording] = useState(false)
@@ -111,7 +117,7 @@ export default function TiltRequestComposer({
       (requireAttachment && !attachment)
     )
       return
-    onSend(request)
+    if (onSend(request) === false) return
     setDraft('')
     setVoiceHint('点击语音输入，说完后确认文字并发送')
   }
@@ -144,13 +150,13 @@ export default function TiltRequestComposer({
             </button>
           </div>
         )}
-        <label className="tilt-composer-label" htmlFor="tilt-request">
-          你的需求
+        <label className="tilt-composer-label" htmlFor={inputId}>
+          {label}
         </label>
         <textarea
           ref={input}
-          id="tilt-request"
-          placeholder="请输入光伏组件倾角、高度等分析需求，或点击下方语音输入…"
+          id={inputId}
+          placeholder={placeholder}
           rows={2}
           maxLength={MAX_TILT_REQUEST_LENGTH}
           value={draft}
@@ -178,24 +184,28 @@ export default function TiltRequestComposer({
           }}
         />
         <div className="chat-composer__toolbar tilt-composer-toolbar">
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".doc,.docx"
-            className="chat-file-input"
-            aria-label="选择项目资料"
-            onChange={onUpload}
-            tabIndex={-1}
-          />
-          <button
-            type="button"
-            className="upload-button"
-            disabled={busy || recording}
-            onClick={() => fileInput.current?.click()}
-          >
-            <AssistantIcon name="table" />
-            上传 Word
-          </button>
+          {onUpload && (
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".doc,.docx"
+              className="chat-file-input"
+              aria-label="选择项目资料"
+              onChange={onUpload}
+              tabIndex={-1}
+            />
+          )}
+          {onUpload && (
+            <button
+              type="button"
+              className="upload-button"
+              disabled={busy || recording}
+              onClick={() => fileInput.current?.click()}
+            >
+              <AssistantIcon name="table" />
+              上传 Word
+            </button>
+          )}
           <button
             type="button"
             className="tilt-voice-button"

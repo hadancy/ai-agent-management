@@ -39,12 +39,12 @@ export async function runPadFieldWorkOrderSmoke(): Promise<void> {
       order.tasks.find((item) => item.role === role)!
     for (const role of ['A', 'B', 'C'] as const) {
       const assigned = service.listAssignedTasks(role).items[0]
-      assert.equal(assigned.voiceText, '您有新的工单，请将光伏组件倾角调整至 22°。')
+      assert.equal(assigned.voiceText, '您有新的工单，请将光伏组件倾角调整至 21至23度。')
       assert.deepEqual(assigned.tiltAdjustment, plan)
     }
     assert.equal(
       seasonalTaskVoice({ ...plan, month: 12, analysisDate: '2026-12-01' }),
-      '您有新的工单，请将光伏组件倾角调整至 34°。'
+      '您有新的工单，请将光伏组件倾角调整至 33至35度。'
     )
     assert.throws(() => service.startTask(task('A').id), /C同学/)
     assert.throws(() => service.startTask(task('C').id), /B同学/)

@@ -1,6 +1,6 @@
 import { formatMeasurement } from './number-format'
 import type { TiltAdjustmentPlan } from './tilt-adjustment'
-import { getPlanAdvice, seasonalStrategy } from './agrivoltaic-analysis'
+import { getPlanAdvice } from './agrivoltaic-analysis'
 
 export const PAD_PLATFORM_NAME = '智诊精巡-高精度只能运维系统'
 export const MAX_TASK_PHOTOS = 6
@@ -76,11 +76,8 @@ export function seasonalChecklist(
   ]
 }
 export function seasonalTaskVoice(plan: TiltAdjustmentPlan): string {
-  const angle =
-    plan.analysisVersion === 2
-      ? seasonalStrategy(plan.analysisDate!).targetAngle
-      : (getPlanAdvice(plan).minAngle + getPlanAdvice(plan).maxAngle) / 2
-  return `您有新的工单，请将光伏组件倾角调整至 ${angle}°。`
+  const { minAngle, maxAngle } = getPlanAdvice(plan)
+  return `您有新的工单，请将光伏组件倾角调整至 ${minAngle}至${maxAngle}度。`
 }
 export function isSeasonalInspectionResult(value: unknown): value is SeasonalInspectionResult {
   if (!value || typeof value !== 'object') return false

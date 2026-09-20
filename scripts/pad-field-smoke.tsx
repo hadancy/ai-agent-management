@@ -161,7 +161,10 @@ async function runPadFieldSmoke(): Promise<void> {
     )
   for (const role of ['B', 'C', 'A'] as const) {
     task = (await fetchPadTasks(origin, role))[0]
-    check(task.voiceText === '您有新的工单，请将光伏组件倾角调整至 22°。', `${role}收到统一语音`)
+    check(
+      task.voiceText === '您有新的工单，请将光伏组件倾角调整至 21至23度。',
+      `${role}收到统一范围语音`
+    )
     renderTask()
     check(task.canStart, `${role}已解锁`)
     const info = document.querySelector('.task-project-info')!.textContent!

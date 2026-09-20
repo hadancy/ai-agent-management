@@ -337,7 +337,7 @@ async function runTiltAssistantSmoke(): Promise<string[]> {
   check(
     tasks[0].tiltAdjustment?.analysisDate === '2026-09-23' &&
       tasks[0].tiltAdjustment.fieldWorkflowVersion === 1 &&
-      tasks[0].voiceText === '您有新的工单，请将光伏组件倾角调整至 22°。',
+      tasks[0].voiceText === '您有新的工单，请将光伏组件倾角调整至 21至23度。',
     'C平台完整接收工单明细'
   )
   root.unmount()

@@ -1,6 +1,7 @@
 import { useState, type ComponentProps } from 'react'
 import AiAssistant from './AiAssistant'
 import TiltAssistant from './TiltAssistant'
+import XiaoguangAssistant from './XiaoguangAssistant'
 import AssistantIcon from './AssistantIcon'
 import '../styles/ai-assistant-page.css'
 
@@ -25,6 +26,12 @@ const TILT_HANDLING_STEPS = [
   ['继续咨询季节倾角', '按当前日期给出调整策略，生成季节性工单'],
   ['人工下发，现场执行', '核对目标倾角后下发，C 平台接收执行任务']
 ]
+const XIAOGUANG_HANDLING_STEPS = [
+  ['点击语音输入', '依次填入五个问题，完成后自动从头循环'],
+  ['确认问题并发送', '小光解答茶园光伏安装、并网和运维难题'],
+  ['听小光讲解', '回答自动播报，可随时停止或重新播放']
+]
+type Assistant = 'diagnosis' | 'tilt' | 'xiaoguang'
 
 export default function AiAssistantPage({
   normalRange,
@@ -38,14 +45,15 @@ export default function AiAssistantPage({
   onViewWorkOrder,
   onOpenMonitor
 }: AiAssistantPageProps): React.JSX.Element {
-  const [assistant, setAssistant] = useState<'diagnosis' | 'tilt'>(() => {
+  const [assistant, setAssistant] = useState<Assistant>(() => {
     try {
-      return localStorage.getItem('ai-assistant-selected') === 'tilt' ? 'tilt' : 'diagnosis'
+      const stored = localStorage.getItem('ai-assistant-selected')
+      return stored === 'tilt' || stored === 'xiaoguang' ? stored : 'diagnosis'
     } catch {
       return 'diagnosis'
     }
   })
-  const selectAssistant = (value: 'diagnosis' | 'tilt'): void => {
+  const selectAssistant = (value: Assistant): void => {
     setAssistant(value)
     try {
       localStorage.setItem('ai-assistant-selected', value)
@@ -83,6 +91,17 @@ export default function AiAssistantPage({
               <small>资料上传 · 季节倾角</small>
             </span>
           </button>
+          <button
+            type="button"
+            aria-pressed={assistant === 'xiaoguang'}
+            onClick={() => selectAssistant('xiaoguang')}
+          >
+            <AssistantIcon name="guide" />
+            <span>
+              <strong>小光智能问答系统</strong>
+              <small>茶园光伏 · 语音问答</small>
+            </span>
+          </button>
         </div>
         <button
           type="button"
@@ -112,6 +131,9 @@ export default function AiAssistantPage({
               onWorkOrderChanged={onWorkOrderChanged}
               onViewWorkOrder={onViewWorkOrder}
             />
+          </div>
+          <div className="assistant-chat-pane" hidden={assistant !== 'xiaoguang'}>
+            <XiaoguangAssistant active={assistant === 'xiaoguang'} serviceOrigin={serviceOrigin} />
           </div>
         </div>
         <aside className="assistant-sidebar" aria-label="运维协同工作台">
@@ -162,20 +184,27 @@ export default function AiAssistantPage({
           <section className="assistant-handling" aria-labelledby="assistant-handling-title">
             <span className="assistant-section-label">HOW IT WORKS</span>
             <h4 id="assistant-handling-title">
-              {assistant === 'tilt' ? '从项目资料，到倾角调整' : '从发现问题，到协同处置'}
+              {assistant === 'xiaoguang'
+                ? '跟着小光，了解茶园光伏'
+                : assistant === 'tilt'
+                  ? '从项目资料，到倾角调整'
+                  : '从发现问题，到协同处置'}
             </h4>
             <ol>
-              {(assistant === 'tilt' ? TILT_HANDLING_STEPS : HANDLING_STEPS).map(
-                ([title, description], index) => (
-                  <li key={title}>
-                    <span className="assistant-step-number">0{index + 1}</span>
-                    <div>
-                      <h5>{title}</h5>
-                      <p>{description}</p>
-                    </div>
-                  </li>
-                )
-              )}
+              {(assistant === 'xiaoguang'
+                ? XIAOGUANG_HANDLING_STEPS
+                : assistant === 'tilt'
+                  ? TILT_HANDLING_STEPS
+                  : HANDLING_STEPS
+              ).map(([title, description], index) => (
+                <li key={title}>
+                  <span className="assistant-step-number">0{index + 1}</span>
+                  <div>
+                    <h5>{title}</h5>
+                    <p>{description}</p>
+                  </div>
+                </li>
+              ))}
             </ol>
           </section>
         </aside>

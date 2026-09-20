@@ -1,0 +1,74 @@
+.xiaoguang-avatar {
+  color: #ffe0a4;
+  border-color: #8d7041;
+  background: linear-gradient(145deg, #625032, #353025);
+}
+.xiaoguang-welcome-hint {
+  display: inline-block;
+  margin-top: 26px;
+  color: #dec89f;
+  font-size: 0.8125rem;
+}
+.xiaoguang-exchange {
+  display: grid;
+  gap: 20px;
+}
+.xiaoguang-exchange + .xiaoguang-exchange {
+  margin-top: 28px;
+}
+.xiaoguang-answer {
+  margin: 0;
+  line-height: 1.95;
+  overflow-wrap: anywhere;
+}
+.xiaoguang-thinking i {
+  background: #e5c28c;
+}
+@media (prefers-reduced-motion: reduce) {
+  .xiaoguang-thinking i {
+    animation: none;
+  }
+}
+.xiaoguang-composer {
+  border-top: 1px solid #22314a;
+}
+.xiaoguang-composer > .chat-upload-error {
+  margin: 12px 26px 0;
+}
+.xiaoguang-composer .chat-composer-area {
+  border-top: 0;
+  padding-top: 14px;
+}
+.xiaoguang-composer .tilt-request-composer {
+  border-color: #665a43;
+  background: #25292c;
+}
+.xiaoguang-composer .tilt-request-composer:focus-within,
+.xiaoguang-composer .tilt-request-composer--speaking {
+  border-color: #c7a66d;
+  box-shadow: 0 0 0 3px #d8b77c12;
+}
+.xiaoguang-composer .tilt-composer-label {
+  color: #cfbc9a;
+}
+.xiaoguang-composer .tilt-voice-button {
+  color: #e8d3af;
+  border-color: #786545;
+  background: #413a2e;
+}
+.xiaoguang-composer .tilt-voice-button:hover:not(:disabled),
+.xiaoguang-composer .tilt-voice-button[aria-pressed='true'] {
+  border-color: #c7a66d;
+  background: #594b33;
+}
+.xiaoguang-composer .tilt-send-button {
+  color: #352815;
+  border-color: #f0d6a4;
+  background: #e5c28c;
+}
+.xiaoguang-composer .tilt-send-button:hover:not(:disabled) {
+  background: #f4d9aa;
+}
+.xiaoguang-composer .tilt-voice-wave i {
+  background: #e5c28c;
+}

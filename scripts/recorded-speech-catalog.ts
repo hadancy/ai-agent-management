@@ -6,11 +6,13 @@ import {
 } from '../src/shared/agrivoltaic-analysis'
 import { ENERGY_ARCHITECTURES } from '../src/renderer/src/features/monitor/energy/architecture'
 import { DIAGNOSIS_SPEECH_TEXT, RECORDED_TEST_TEXT } from '../src/shared/recorded-speech'
+import { XIAOGUANG_QA } from '../src/shared/xiaoguang-qa'
 export * from '../src/shared/recorded-speech'
 
 export const fullRecordings = [
   DIAGNOSIS_SPEECH_TEXT,
   RECORDED_TEST_TEXT,
+  ...XIAOGUANG_QA.map((item) => item.answer),
   OVERVIEW_CONCLUSION,
   seasonalSpeechText(),
   SEASONAL_RESULT.join('\n'),
