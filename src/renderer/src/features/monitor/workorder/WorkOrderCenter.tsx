@@ -31,7 +31,7 @@ const STATUS_META: Record<WorkOrderStatus, { label: string; description: string 
   pending_review: { label: '待审核', description: '草稿已生成，等待人工审核下达' },
   dispatched: { label: '已下达', description: '任务已推送至 A、B、C 三台 Pad' },
   in_progress: { label: '处理中', description: '现场人员正在执行并回填任务' },
-  plc_verifying: { label: 'PLC 验证中', description: '三人已提交，正在验证设备数据是否连续正常' },
+  plc_verifying: { label: '安装复核中', description: '三人已提交，正在验证设备数据是否连续正常' },
   closed: { label: '已处理', description: '人员回填和 PLC 恢复条件均已满足' }
 }
 
@@ -683,7 +683,7 @@ export default function WorkOrderCenter({
             <strong>{counts.running}</strong>
           </article>
           <article className="work-order-summary__verify">
-            <span>PLC 验证中</span>
+            <span>安装复核中</span>
             <strong>{counts.verifying}</strong>
           </article>
           <article className="work-order-summary__success">
