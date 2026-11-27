@@ -259,7 +259,7 @@ export async function runTiltWorkOrderSmoke(): Promise<void> {
     }
     let autumn = resumed.createDraft({ tiltAdjustment: autumnPlan }).workOrder
     assert.equal(autumn.orderNumber, 'NG-GQ-20260923-001')
-    assert.equal(autumn.stationName, '光明村农光互补智慧农业一体化运维项目')
+    assert.equal(autumn.stationName, '清溪村农光互补智慧农业一体化运维项目')
     assert.equal(autumn.faultType, '支架倾角季节性调整-秋季模式')
     assert.equal(resumed.createDraft({ tiltAdjustment: autumnPlan }).workOrder.id, autumn.id)
     assert.equal(

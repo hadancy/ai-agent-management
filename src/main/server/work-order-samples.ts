@@ -1,4 +1,5 @@
 import type { WorkOrder, WorkOrderTask, WorkOrderTaskResult } from '../../shared/contracts'
+import { STATION_NAME } from '../../shared/station-name'
 
 const SAMPLES = [
   {
@@ -125,7 +126,7 @@ export function createBuiltInWorkOrders(
     return {
       id,
       orderNumber: nextOrderNumber(`202608${sample.day}`),
-      stationName: '光明村光伏电站',
+      stationName: STATION_NAME,
       deviceId: `pv-${sample.stringNumber}`,
       stringName,
       componentName,

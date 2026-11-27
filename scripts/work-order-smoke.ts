@@ -120,6 +120,7 @@ async function run(): Promise<void> {
       body: JSON.stringify(draftInput)
     })
     check(firstDraft.created, '首次分析应创建工单草稿')
+    check(firstDraft.workOrder.stationName === '清溪村光伏电站', '旧场站名称应显示为清溪村')
     check(/^GZ-\d{8}-\d{3}$/.test(firstDraft.workOrder.orderNumber), '工单编号格式不正确')
     check(firstDraft.workOrder.status === 'pending_review', '草稿应处于待审核状态')
 

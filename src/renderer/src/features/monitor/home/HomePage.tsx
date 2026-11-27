@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import type { TelemetrySnapshot } from '../../../../../shared/contracts'
 import { calculatePowerKW, formatPowerKW } from '../../../../../shared/power-units'
+import { STATION_NAME } from '../../../../../shared/station-name'
 import type { ConnectionState } from '../../../realtime'
 import type { ConsoleNav, MonitorSection } from '../types'
 import AgricultureScene from './AgricultureScene'
@@ -153,7 +154,7 @@ export default function HomePage({
           </svg>
           <div>
             <span>农光互补应用 / AGRIVOLTAICS</span>
-            <strong>清溪村光伏电站</strong>
+            <strong>{STATION_NAME}</strong>
           </div>
           <span className={`home-station-state${plcOnline ? ' home-station-state--online' : ''}`}>
             <i />

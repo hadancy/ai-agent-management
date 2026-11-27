@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { STATION_NAME } from '../../../../shared/station-name'
 import { useRealtime } from '../../realtime'
 import { usePlatformSpeech } from '../../speech/usePlatformSpeech'
 import AiAssistantPage from './ai/AiAssistantPage'
@@ -122,7 +123,7 @@ export default function ConsoleApp(): React.JSX.Element {
   const createWorkOrder = useCallback(async () => {
     const firstString = telemetry?.devices.find((device) => device.id === 'pv-1')
     const result = await createWorkOrderDraft(serviceOrigin, {
-      stationName: '光明村光伏电站',
+      stationName: STATION_NAME,
       deviceId: 'pv-1',
       stringName: '1号光伏组串',
       componentName: '1号组件',

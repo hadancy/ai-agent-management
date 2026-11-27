@@ -50,6 +50,13 @@ import {
   seasonalWorkOrderFields,
   SEASONAL_RESULT
 } from '../../shared/agrivoltaic-analysis'
+import {
+  AGRIVOLTAIC_PROJECT_NAME,
+  LEGACY_VILLAGE_NAME,
+  replacePreviousVillageName,
+  STATION_NAME,
+  VILLAGE_NAME
+} from '../../shared/station-name'
 
 const DEFAULT_NORMAL_VOLTAGE = 613
 const DEFAULT_NORMAL_CURRENT = 9.4
@@ -309,8 +316,12 @@ function capabilities(
 }
 
 function hydrateWorkOrder(workOrder: WorkOrder): WorkOrder {
-  const tasks = workOrder.tasks.map((task) => ({ ...task, ...capabilities(workOrder, task) }))
-  return { ...workOrder, tasks }
+  const tasks = workOrder.tasks.map((task) => ({
+    ...task,
+    ...capabilities(workOrder, task),
+    description: replacePreviousVillageName(task.description)
+  }))
+  return { ...workOrder, stationName: replacePreviousVillageName(workOrder.stationName), tasks }
 }
 
 function parseCheckpointRequest(value: unknown): CompleteSafetyCheckpointRequest {
@@ -627,7 +638,9 @@ export class WorkOrderService {
     const latestDevice = this.options
       .getLatestSnapshot()
       ?.devices.find((device) => device.id === TARGET_DEVICE_ID)
-    const stationName = readOptionalText(input.stationName, 'stationName') ?? '光明村光伏电站'
+    const stationName = replacePreviousVillageName(
+      readOptionalText(input.stationName, 'stationName') ?? STATION_NAME
+    )
     const deviceId = readOptionalText(input.deviceId, 'deviceId') ?? TARGET_DEVICE_ID
     if (deviceId !== TARGET_DEVICE_ID) {
       throw new WorkOrderRequestError(400, 'UNSUPPORTED_DEVICE', '当前仅支持1号光伏组串 pv-1')
@@ -667,16 +680,22 @@ export class WorkOrderService {
     const tolerance = tolerancePercent / 100
     const now = this.now()
     const timestamp = now.toISOString()
-    const dedupeKey = (
-      tiltAdjustment
+    const dedupeKeyFor = (name: string): string =>
+      (tiltAdjustment
         ? ['tilt-adjustment', tiltAdjustment.requestId]
-        : [stationName, deviceId, componentName, faultType]
-    )
-      .map((part) => part.trim().toLocaleLowerCase('zh-CN'))
-      .join('|')
+        : [name, deviceId, componentName, faultType]
+      )
+        .map((part) => part.trim().toLocaleLowerCase('zh-CN'))
+        .join('|')
+    const dedupeKey = dedupeKeyFor(stationName)
+    const legacyDedupeKey = dedupeKeyFor(stationName.replaceAll(VILLAGE_NAME, LEGACY_VILLAGE_NAME))
 
     const result = this.options.database.runInTransaction(() => {
-      const existing = this.options.database.findOpenWorkOrder(dedupeKey)
+      const existing =
+        this.options.database.findOpenWorkOrder(dedupeKey) ??
+        (legacyDedupeKey !== dedupeKey
+          ? this.options.database.findOpenWorkOrder(legacyDedupeKey)
+          : undefined)
       if (existing) {
         if (
           tiltAdjustment &&
@@ -727,10 +746,7 @@ export class WorkOrderService {
         tiltAdjustment,
         id,
         orderNumber,
-        stationName:
-          tiltAdjustment?.analysisVersion === 2
-            ? '光明村农光互补智慧农业一体化运维项目'
-            : stationName,
+        stationName: tiltAdjustment?.analysisVersion === 2 ? AGRIVOLTAIC_PROJECT_NAME : stationName,
         deviceId,
         stringName,
         componentName,

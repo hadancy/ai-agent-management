@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { STATION_TIME_ZONE } from '../../../../../shared/plc-clock'
+import { STATION_NAME } from '../../../../../shared/station-name'
 import type { ConsoleNav } from '../types'
 
 const NAV_ITEMS: ConsoleNav[] = ['首页', '综合监控', '智诊精巡', '工单中心', '设置中心']
@@ -39,7 +40,7 @@ export default function MonitorHeader({
       <div className="brand-block">
         <h1>农光智算AI智能体辅助管理平台</h1>
         <i aria-hidden="true" />
-        <span>清溪村光伏电站</span>
+        <span>{STATION_NAME}</span>
       </div>
       <nav aria-label="主要功能">
         {NAV_ITEMS.map((item) => (

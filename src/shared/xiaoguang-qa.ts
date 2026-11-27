@@ -1,9 +1,10 @@
+import { replacePreviousVillageName, VILLAGE_NAME } from './station-name'
+
 export const XIAOGUANG_QA = [
   {
     topic: '项目概况',
-    question: '小光小光，现在光明村茶园装光伏设备，最急需解决的问题是什么呀？',
-    answer:
-      '咱们先看下光明村的基本情况：该村以茶树种植为主要经济来源，地处丘陵山地，平地少、山地多。目前推进农光一体化，难题主要集中在安装侧和网荷储运维侧两大块。'
+    question: `小光小光，现在${VILLAGE_NAME}茶园装光伏设备，最急需解决的问题是什么呀？`,
+    answer: `咱们先看下${VILLAGE_NAME}的基本情况：该村以茶树种植为主要经济来源，地处丘陵山地，平地少、山地多。目前推进农光一体化，难题主要集中在安装侧和网荷储运维侧两大块。`
   },
   {
     topic: '安装空间',
@@ -33,6 +34,9 @@ export const XIAOGUANG_QA = [
 
 // Punctuation and spacing may change when the student edits the filled question.
 export function findXiaoguangQuestion(request: string): number {
-  const normalize = (text: string): string => text.normalize('NFKC').replace(/[\p{P}\s]/gu, '')
+  const normalize = (text: string): string =>
+    replacePreviousVillageName(text)
+      .normalize('NFKC')
+      .replace(/[\p{P}\s]/gu, '')
   return XIAOGUANG_QA.findIndex((item) => normalize(item.question) === normalize(request))
 }

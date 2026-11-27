@@ -3,6 +3,7 @@ import AssistantIcon from './AssistantIcon'
 import { usePlatformSpeech } from '../../../speech/usePlatformSpeech'
 import type { VoiceStatus } from '../../../speech/PlatformSpeechPlayer'
 import { DIAGNOSIS_SPEECH_TEXT } from '../../../../../shared/recorded-speech'
+import { replacePreviousVillageName, STATION_NAME } from '../../../../../shared/station-name'
 import ClearChatDialog from './ClearChatDialog'
 import type { WorkOrderTarget } from '../workorder/api'
 import '../styles/ai-assistant.css'
@@ -29,7 +30,7 @@ type WorkOrderDraftFeedback = {
 
 const CHAT_STORAGE_KEY = 'ai-assistant-chat-messages-v2'
 const DIAGNOSIS_CONTENT = [
-  ['故障位置', '光明村光伏电站 · 1号组件'],
+  ['故障位置', `${STATION_NAME} · 1号组件`],
   ['可能原因', '局部遮挡、组件内部缺陷、热斑效应'],
   ['处理建议', '隔离该组串，现场确认并更换或清洗组件']
 ] as const
@@ -95,7 +96,7 @@ function loadStoredMessages(): ChatMessage[] {
 
 function formatAssistantContent(content: string): string {
   // Apply the current wording to assistant replies restored from older conversations.
-  return content
+  return replacePreviousVillageName(content)
     .replaceAll('以下为示例诊断，请现场核实。', '')
     .replace(/当前图片分析(?:使用|为)示例诊断，/g, '')
     .replaceAll('示例诊断', '故障分析')

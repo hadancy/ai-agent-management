@@ -1,5 +1,6 @@
 import { formatMeasurement } from './number-format'
 import { STATION_TIME_ZONE } from './plc-clock'
+import { AGRIVOLTAIC_PROJECT_NAME } from './station-name'
 import { getTiltAdvice, isAnalysisDate, type TiltAdjustmentPlan } from './tilt-adjustment'
 
 export type AnalysisRound = 'overview' | 'seasonal'
@@ -45,7 +46,7 @@ export const OVERVIEW_ANALYSIS =
 
 export const SEASONAL_ANALYSIS =
   `设计原则：优先满足茶树各物候期光照、光照质量需求，兼顾光伏发电收益；结合本地经纬度太阳高度、山区小气候；季节自适应固定可调支架，每年4次物候节点调角；农光互补，作物优先，发电次之。
-作物基础（光明村山地茶叶）：
+作物基础（清溪村山地茶叶）：
 1.冬季休眠期：茶树停止新梢生长，仅维持基础代谢，光照需求最低，但芽基分化发育，不可长期重度遮阴；
 2.春茶采摘季：全年经济价值最高，新梢萌发，喜漫射光、忌长时间正午强遮光，日均有效光照≥7h，利于氨基酸积累，提升春茶品质；
 3.夏梢生长期：伏旱高温强光，强光会灼伤茶梢，需要适度遮阴，但不能遮光过重，日均有效光照≥6.8h；
@@ -177,7 +178,7 @@ export function seasonalWorkOrderFields(plan: TiltAdjustmentPlan): Array<[string
   const date = plan.analysisDate!
   const strategy = seasonalStrategy(date)
   return [
-    ['项目名称', '光明村农光互补智慧农业一体化运维项目'],
+    ['项目名称', AGRIVOLTAIC_PROJECT_NAME],
     ['作业工单名称', `支架倾角季节性调整-${strategy.season}模式`],
     ['作业日期', date.replaceAll('-', '.')],
     ['计划执行时段', '09:00–17:00'],
@@ -185,7 +186,7 @@ export function seasonalWorkOrderFields(plan: TiltAdjustmentPlan): Array<[string
     ['作业对象', '手动季节可调支架阵列'],
     [
       '调整依据',
-      `1. 光明村光照及茶叶作物生长特性；\n2. 项目倾角技术方案（${strategy.season}：${formatMeasurement(strategy.minAngle)}–${formatMeasurement(strategy.maxAngle)}°）；\n3. 省农光互补项目建设管理规定，保障板下农业生产条件。`
+      `1. 清溪村光照及茶叶作物生长特性；\n2. 项目倾角技术方案（${strategy.season}：${formatMeasurement(strategy.minAngle)}–${formatMeasurement(strategy.maxAngle)}°）；\n3. 省农光互补项目建设管理规定，保障板下农业生产条件。`
     ],
     ['本次目标倾角', `${formatMeasurement(strategy.targetAngle)}°（允许偏差 ±1.00°）`],
     ['调整后维持周期', `${date.replaceAll('-', '.')}～${strategy.endDate.replaceAll('-', '.')}`]

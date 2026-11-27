@@ -1,4 +1,5 @@
 import { useState, type ComponentProps } from 'react'
+import { STATION_NAME } from '../../../../../shared/station-name'
 import AiAssistant from './AiAssistant'
 import TiltAssistant from './TiltAssistant'
 import XiaoguangAssistant from './XiaoguangAssistant'
@@ -152,7 +153,7 @@ export default function AiAssistantPage({
                 <i /> PLC {plcOnline ? '在线' : '离线'}
               </span>
             </div>
-            <h4 id="assistant-station-title">光明村光伏电站</h4>
+            <h4 id="assistant-station-title">{STATION_NAME}</h4>
             <p>光储直柔一体化 · 智能运维</p>
             <button type="button" onClick={onOpenMonitor}>
               查看设备运行状态 <AssistantIcon name="arrow" />

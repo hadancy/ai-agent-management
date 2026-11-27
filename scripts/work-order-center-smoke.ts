@@ -30,6 +30,7 @@ function verifySamples(db: AppDatabase): WorkOrder[] {
   )
   assert.equal(samples[2].alarm.current, 0)
   for (const order of samples) {
+    assert.equal(order.stationName, '清溪村光伏电站')
     assert.equal(order.deviceId, `pv-${order.stringName[0]}`)
     assert.equal(order.tasks.length, 3)
     assert.equal(new Set(order.tasks.map((task) => task.role)).size, 3)
@@ -128,12 +129,14 @@ try {
   for (const version of [1, 2, 3]) {
     const legacy = createAppDatabase(join(directory, `legacy-v${version}`))
     try {
+      const legacyStationName = '光明村光伏电站'
       const oldOrders = createBuiltInWorkOrders((datePart) => `GZ-${datePart}-001`)
       for (const order of oldOrders) {
         const previouslyClosed =
           order.id === 'builtin-work-order-2' || order.id === 'builtin-work-order-3'
         order.status = previouslyClosed ? 'closed' : 'pending_review'
         order.priority = order.id === 'builtin-work-order-2' ? 'urgent' : 'normal'
+        order.stationName = legacyStationName
         order.stringName = '1号光伏组串'
         order.deviceId = 'pv-1'
         order.reviewedAt = previouslyClosed ? order.createdAt : null
@@ -187,10 +190,14 @@ try {
       legacy.recordEvent('work-order.builtins-initialized.v1', {})
       if (version >= 2) legacy.recordEvent('work-order.builtins-updated.v2', {})
       if (version >= 3) legacy.recordEvent('work-order.builtins-locations.v3', {})
-      const legacyActual = createService(legacy).createDraft({
-        faultType: '组件热斑',
-        priority: 'urgent'
-      }).workOrder
+      const legacyActual = { ...structuredClone(actual), stationName: legacyStationName }
+      legacyActual.tasks[0].description = `前往${legacyStationName}开展安全监护。`
+      legacy.insertWorkOrder(legacyActual, `${legacyStationName}|pv-1|1号组件|组件热斑`)
+      const retry = createService(legacy).createDraft({})
+      assert.equal(retry.deduplicated, true)
+      assert.equal(retry.workOrder.id, legacyActual.id)
+      assert.equal(retry.workOrder.stationName, '清溪村光伏电站')
+      assert.equal(retry.workOrder.tasks[0].description, '前往清溪村光伏电站开展安全监护。')
       const preserved = legacy.getWorkOrderDetail(legacyActual.id)
       legacy.seedBuiltInWorkOrders()
       const updated = verifySamples(legacy)

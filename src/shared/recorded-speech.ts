@@ -1,8 +1,9 @@
+import { STATION_NAME } from './station-name'
+
 export const RECORDED_VOICE = 'Tingting'
 export const RECORDED_SPEECH_VERSION = 'tingting-185-v2'
 export const RECORDED_SAMPLE_RATE = 24000
-export const DIAGNOSIS_SPEECH_TEXT =
-  '故障类型：组件热斑。故障位置：光明村光伏电站1号组件。可能原因：局部遮挡、组件内部缺陷、热斑效应。处理建议：隔离该组串，现场确认并更换或清洗组件。工单草稿已生成，等待人工审核下达。'
+export const DIAGNOSIS_SPEECH_TEXT = `故障类型：组件热斑。故障位置：${STATION_NAME}1号组件。可能原因：局部遮挡、组件内部缺陷、热斑效应。处理建议：隔离该组串，现场确认并更换或清洗组件。工单草稿已生成，等待人工审核下达。`
 export const RECORDED_TEST_TEXT = DIAGNOSIS_SPEECH_TEXT
 
 const DIGITS = '零一二三四五六七八九'

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { VILLAGE_NAME } from '../../../../../shared/station-name'
 import { findXiaoguangQuestion, XIAOGUANG_QA } from '../../../../../shared/xiaoguang-qa'
 import { usePlatformSpeech } from '../../../speech/usePlatformSpeech'
 import type { VoiceStatus } from '../../../speech/PlatformSpeechPlayer'
@@ -121,7 +122,7 @@ export default function XiaoguangAssistant({
             <h3>
               小光智能问答系统 <span>AI</span>
             </h3>
-            <p>光明村茶园 · 农光一体化 · 语音问答</p>
+            <p>{VILLAGE_NAME}茶园 · 农光一体化 · 语音问答</p>
           </div>
         </div>
         <button
@@ -152,7 +153,7 @@ export default function XiaoguangAssistant({
             <p>
               茶园里装光伏，有哪些难题？
               <br />
-              从安装空间、成本维护，到并网消纳和日常巡检，一起聊聊光明村。
+              从安装空间、成本维护，到并网消纳和日常巡检，一起聊聊{VILLAGE_NAME}。
             </p>
             <span className="xiaoguang-welcome-hint">点击下方「语音输入」，开始第一个问题</span>
           </div>
