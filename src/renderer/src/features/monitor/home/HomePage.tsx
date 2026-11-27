@@ -153,7 +153,7 @@ export default function HomePage({
           </svg>
           <div>
             <span>农光互补应用 / AGRIVOLTAICS</span>
-            <strong>光明村光伏电站</strong>
+            <strong>清溪村光伏电站</strong>
           </div>
           <span className={`home-station-state${plcOnline ? ' home-station-state--online' : ''}`}>
             <i />

@@ -39,7 +39,7 @@ export default function MonitorHeader({
       <div className="brand-block">
         <h1>农光智算AI智能体辅助管理平台</h1>
         <i aria-hidden="true" />
-        <span>光明村光伏电站</span>
+        <span>清溪村光伏电站</span>
       </div>
       <nav aria-label="主要功能">
         {NAV_ITEMS.map((item) => (
